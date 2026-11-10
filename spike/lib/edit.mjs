@@ -216,6 +216,20 @@ export function analyzePage(page, lines, opts, needed) {
   return styles;
 }
 
+/** Kiểu căn của dòng: 'center' | 'right' | 'left'. Dòng bắt đầu ở mép trái dùng chung với ≥2 dòng khác coi là căn trái
+ *  (kể cả căn đều); còn lại xét tâm dòng so với tâm vùng nội dung, và mép phải so với lề phải. */
+function alignmentOf(lines, line) {
+  const others = lines.filter((l) => l !== line && Math.abs(l.bbox[3] - l.bbox[1] - (line.bbox[3] - line.bbox[1])) < 20);
+  const sharedLeft = others.filter((l) => Math.abs(l.bbox[0] - line.bbox[0]) < 1.5).length;
+  if (sharedLeft >= 2) return 'left';
+  const left = Math.min(...lines.map((l) => l.bbox[0])), right = Math.max(...lines.map((l) => l.bbox[2]));
+  if (line.bbox[0] - left < 2) return 'left'; // chạm lề trái: dòng thường hoặc căn đều
+  const center = (line.bbox[0] + line.bbox[2]) / 2;
+  if (Math.abs(center - (left + right) / 2) < 3) return 'center';
+  if (Math.abs(line.bbox[2] - right) < 2 && line.bbox[0] > left + 40) return 'right';
+  return 'left';
+}
+
 /** Biên phải khả dụng: tới chữ gần nhất phía bên phải (cột/ô bảng kế bên) trong dải ±3 dòng; không có thì lề phải nội dung. */
 function rightLimit(lines, line, x) {
   const [, y0, , y1] = line.bbox, h = y1 - y0;
@@ -238,6 +252,16 @@ function shrinkQuad(q, k = 0.25) {
   const [ulx, uly, urx, ury, llx, lly, lrx, lry] = q;
   const top = (a, b) => a + (b - a) * k, bot = (a, b) => b - (b - a) * k;
   return [ulx, top(uly, lly), urx, top(ury, lry), llx, bot(uly, lly), lrx, bot(ury, lry)];
+}
+
+/** CMap ToUnicode cho phông Identity-H: glyph id (2 byte) → chuỗi Unicode (UTF-16BE). */
+function toUnicodeCMap(map) {
+  const hex4 = (n) => n.toString(16).padStart(4, '0').toUpperCase();
+  const u16 = (str) => { let h = ''; for (const ch of str) { const cp = ch.codePointAt(0); if (cp > 0xffff) { const v = cp - 0x10000; h += hex4(0xd800 + (v >> 10)) + hex4(0xdc00 + (v & 0x3ff)); } else h += hex4(cp); } return h; };
+  const entries = [...map].map(([g, ch]) => `<${hex4(g)}> <${u16(ch)}>`);
+  let body = '';
+  for (let i = 0; i < entries.length; i += 100) { const part = entries.slice(i, i + 100); body += `${part.length} beginbfchar\n${part.join('\n')}\nendbfchar\n`; }
+  return `/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /LMEd-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n${body}endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n`;
 }
 
 /** Dựng chuỗi ký tự mới kèm "ký tự gốc mẫu" quyết định kiểu (phông/cỡ/màu) cho từng ký tự. */
@@ -265,12 +289,15 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   for (const l of lines) { const t = NFC(l.text); const i = t.indexOf(want); if (i >= 0 && t.length === l.text.length) { line = l; s = i; break; } }
   if (!line) return { status: 'not-found', reason: lines.some((l) => NFC(l.text).includes(want)) ? 'decomposed' : 'not-on-one-line' };
   const e = s + [...want].length;
-  const needed = new Set(line.chars.slice(s).map((c) => c.key));
+  const needed = new Set(line.chars.map((c) => c.key));
   const styles = analyzePage(page, lines, opts, needed);
 
-  const seq = buildSequence(line.chars.slice(s, e), replace, line.chars.slice(e));
-  const editChars = line.chars.slice(s);
-  const first = line.chars[s];
+  // Dòng căn giữa/căn phải: viết lại CẢ dòng để đặt lại vị trí theo kiểu căn.
+  const align = alignmentOf(lines, line);
+  const start = align === 'left' ? s : 0;
+  const seq = line.chars.slice(start, s).map((c) => ({ ch: c.c, src: c })).concat(buildSequence(line.chars.slice(s, e), replace, line.chars.slice(e)));
+  const editChars = line.chars.slice(start);
+  const first = line.chars[start];
   const oldRight = Math.max(...editChars.map((c) => Math.max(c.quad[2], c.quad[6])));
 
   // --- phông cho từng kiểu: dùng lại phông gốc (có tên, đủ ký tự) hoặc phông dự phòng đã nhận dạng ---
@@ -292,15 +319,21 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
     const ch = choice.get(it.src.key), col = colorOp(it.src.color), size = +it.src.size.toFixed(3);
     const g = gid(ch.font, it.ch);
     const last = runs[runs.length - 1];
-    if (last && last.font === ch.font && last.size === size && last.col === col) last.gids.push(g);
-    else runs.push({ font: ch.font, size, col, gids: [g], strategy: ch.strategy, label: ch.label });
+    if (last && last.font === ch.font && last.size === size && last.col === col) { last.gids.push(g); last.chars.push(it.ch); }
+    else runs.push({ font: ch.font, size, col, gids: [g], chars: [it.ch], strategy: ch.strategy, label: ch.label });
   }
   let width = 0;
   for (const r of runs) { r.width = r.gids.reduce((w, g) => w + r.font.advanceGlyph(g, 0), 0) * r.size; width += r.width; }
-  const x = first.origin[0];
-  const avail = rightLimit(lines, line, x) - x;
+  let x = first.origin[0];
+  const oldLeft = x, oldEnd = oldRight;
+  let avail = rightLimit(lines, line, x) - x;
+  if (align === 'center') avail = Math.max(avail, oldEnd - oldLeft + 2 * Math.min(oldLeft - Math.min(...lines.map((l) => l.bbox[0])), Math.max(...lines.map((l) => l.bbox[2])) - oldEnd));
+  if (align === 'right') avail = oldEnd - Math.min(...lines.map((l) => l.bbox[0]));
   let tz = 100, overflow = false;
   if (width > avail) { tz = Math.floor((avail / width) * 100); if (tz < 85) { overflow = true; tz = 85; } }
+  const shown = width * tz / 100;
+  if (align === 'center') x = (oldLeft + oldEnd) / 2 - shown / 2;
+  if (align === 'right') x = oldEnd - shown;
 
   // --- xoá thật chữ cũ (cụm + đuôi dòng) ---
   const annot = page.createAnnotation('Redact');
@@ -310,7 +343,7 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   // --- vẽ chữ mới ---
   const inv = mupdf.Matrix.invert(page.getTransform());
   const lin = mupdf.Matrix.concat([1, 0, 0, -1, 0, 0], inv);
-  const [px, py] = PT(inv, first.origin);
+  const [px, py] = PT(inv, [x, first.origin[1]]);
   const Tm = [lin[0], lin[1], lin[2], lin[3], px, py].map((v) => +v.toFixed(4));
   const pageObj = page.getObject();
   let res = pageObj.get('Resources');
@@ -323,7 +356,13 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   for (const r of runs) {
     if (keys.has(r.font)) continue;
     while (!fonts.get('LMEd' + n).isNull()) n++;
-    fonts.put('LMEd' + n, doc.addFont(r.font)); keys.set(r.font, 'LMEd' + n); n++;
+    const fo = doc.addFont(r.font);
+    // Tự ghi ToUnicode theo đúng chữ người dùng gõ: bảng cmap của phông nhúng gốc có thể ánh xạ dấu cách thành U+00A0
+    // (gặp ở PDF của Word và Canva), làm tìm kiếm/copy sai dù nhìn đúng.
+    const map = new Map();
+    for (const rr of runs) if (rr.font === r.font) rr.gids.forEach((g, i) => { if (!map.has(g)) map.set(g, rr.chars[i]); });
+    fo.resolve().put('ToUnicode', doc.addStream(toUnicodeCMap(map), {}));
+    fonts.put('LMEd' + n, fo); keys.set(r.font, 'LMEd' + n); n++;
   }
   let content = `q\nBT\n${tz !== 100 ? tz + ' Tz\n' : ''}${Tm.join(' ')} Tm\n`;
   for (const r of runs) content += `${r.col}\n/${keys.get(r.font)} ${r.size} Tf\n<${r.gids.map((g) => g.toString(16).padStart(4, '0')).join('')}> Tj\n`;
@@ -343,7 +382,8 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   return {
     status: 'ok', strategy: worst, fonts: used.map(([l, st]) => `${l} (${st})`), fontName: baseName(first.font),
     fallback: used.map(([l]) => l).join(' + '), match: m ? m.match : null, runs: runs.length,
-    size: +first.size.toFixed(2), width: +width.toFixed(1), oldWidth: +(oldRight - x).toFixed(1), avail: +avail.toFixed(1), tz, overflow,
-    region: [x, line.bbox[1], Math.max(oldRight, x + width * tz / 100), line.bbox[3]], lineBox: line.bbox,
+    size: +first.size.toFixed(2), width: +width.toFixed(1), oldWidth: +(oldRight - oldLeft).toFixed(1), avail: +avail.toFixed(1), tz, overflow,
+    align, region: [Math.min(x, oldLeft), line.bbox[1], Math.max(oldRight, x + width * tz / 100), line.bbox[3]], lineBox: line.bbox,
+    centerShift: +(((x + shown / 2) - (oldLeft + oldEnd) / 2)).toFixed(1), rightShift: +((x + shown) - oldEnd).toFixed(1),
   };
 }
