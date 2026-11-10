@@ -20,6 +20,7 @@ PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường ch
 - Dàn lại đoạn: `paragraphAfter/Before()` (cùng cỡ, cùng lề, khoảng dòng ±12%), `planReflow()` ngắt dòng tham lam vào các ô dòng sẵn có + tối đa 1 dòng thêm nếu trống; căn đều khi dấu cách gốc giãn > 1,04 lần; đoạn căn đều thì viết lại cả dòng (`opts._full`). Mỗi từ là một mảnh có toạ độ riêng (Identity-H không dùng được Tw).
 - Dòng nhìn thấy (`readLines`): ghép các mảnh MuPDF cùng chân chữ, nối tiếp nhau (khoảng cách −1…0,6 cỡ chữ); không ghép mảnh chồng lên nhau (biểu tượng Canva vẽ đè).
 - `spike/run.mjs`: bộ thử 6 tiêu chí, `npm run spike` (mẫu tổng hợp) hoặc `node spike/run.mjs --real` (PDF thật trong `spike/samples/real/`, không commit). Báo cáo `spike/report/REPORT.md`, nhận định `spike/FINDINGS.md`.
+- `spike/fuzz.mjs` (`npm run fuzz`, thêm `--real`): sửa MỌI dòng theo 5 kiểu (thêm cuối/đầu, thay giữa, rút gọn, xoá), bắt ngoại lệ và mất chữ (so theo từ). `spike/multi.mjs` (`npm run multi`): sửa nhiều dòng liên tiếp trên cùng tài liệu rồi kiểm các dòng đã sửa trước vẫn tìm/copy được. **Chạy cả hai trước khi push thay đổi lõi.** Mốc 11/2026: thật 1.390 lần sửa, 0 lỗi, 0 mất chữ (59 tràn có cảnh báo); 76 lần sửa liên tiếp, 0 hỏng.
 - `spike/make-samples.mjs`: sinh mẫu bằng Chromium (cần Playwright). Mẫu đã commit.
 - `fonts/`: phông dự phòng đủ dấu tiếng Việt (Liberation, Carlito, DejaVu, Inter) + `fonts/licenses/`. Caladea (thay Cambria) **thiếu dấu tiếng Việt**, không dùng.
 - Giấy phép repo: **AGPL-3.0-or-later** (bắt buộc vì dùng MuPDF.js bản AGPL).
@@ -35,6 +36,10 @@ PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường ch
 - Dòng căn giữa/căn phải: viết lại cả dòng và đặt lại vị trí (`alignmentOf`); dòng chạm lề trái luôn là căn trái.
 - **Không bao giờ `saveToBuffer('garbage=...')` trên tài liệu đang sửa**: dọn rác đánh số lại đối tượng, lần sửa sau làm mất chữ. Tải về = lưu thô (`compress=yes`) → mở bản sao → `subsetFonts()` → `garbage=compact` (đã kiểm: 0 điểm ảnh khác, CV 585→326 KB).
 - Ô sửa: không chọn sẵn cả dòng (gõ nhầm mất dòng); đặt con trỏ theo `xs` tại chỗ bấm.
+- **Bộ nhớ WASM**: MuPDF.js chỉ giải phóng khi bộ dọn rác JS chạy (FinalizationRegistry, chạy trễ). Phải `destroy()` chủ động: StructuredText, Pixmap, PDFDocument tạm, Device, trang, chú thích Redact (giữ trang → giữ cả tài liệu). MuPDF.js tạo một `Font` cho MỖI ký tự khi walk, phông Type3 còn giữ cả tài liệu: gom theo `f.pointer`, huỷ bản thừa, `releaseLines()` khi xong.
+- **Redaction xoá theo khung hình vẽ của glyph**, không theo quad; phông Type3 (Notion) có khung rộng và quad lệch ~2,7 pt → xoá oan ký tự kề ("study:"→"stud:"). Cách chữa: chụp ký tự lân cận trước khi xoá, so sau khi xoá, vẽ lại ký tự mất oan (`rescued`).
+- **`doc.addFont()` trả về cùng một đối tượng PDF cho cùng một phông** (kể cả qua nhiều lần sửa): ToUnicode phải gom theo đối tượng PDF và GỘP với bảng sẵn có (`readToUnicode`), ghi đè làm chữ của lần sửa trước thành ký tự rác.
+- Khe trước cột/ô kế bên ≥ 0,8 cỡ chữ (`rightLimit`), nếu không chữ mới bị ghép với cột bên; dòng có chữ khác cùng hàng không bao giờ là căn giữa/phải; ghép mảnh có khe thì chèn dấu cách ảo (`virtual`, không đem đi xoá).
 - Notion xuất PDF qua Headless Chrome: gần như toàn bộ là Type3, tiêu đề Inter SemiBold, tiêu đề bìa Inter Bold; gạch chân link mục lục là nét vẽ rời.
 
 ## Bước 1: thử nghiệm chất lượng (làm trước, chưa xây giao diện thật)

@@ -7,7 +7,9 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "spike": "node spike/run.mjs",
-    "spike:samples": "node spike/make-samples.mjs"
+    "spike:samples": "node spike/make-samples.mjs",
+    "fuzz": "node --expose-gc spike/fuzz.mjs",
+    "multi": "node --expose-gc spike/multi.mjs"
   },
   "dependencies": {
     "mupdf": "1.28.6"

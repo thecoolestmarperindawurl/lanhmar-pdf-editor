@@ -25,19 +25,29 @@ const isType3 = (font) => /^Type3/.test(baseName(font));
 function readRawLines(page) {
   const st = page.toStructuredText('preserve-whitespace');
   const lines = []; let block = null, cur = null;
+  // MuPDF.js tạo một đối tượng Font cho MỖI ký tự; với phông Type3 mỗi đối tượng còn giữ cả tài liệu.
+  // Gom về một đối tượng cho mỗi phông thật (theo con trỏ) và huỷ bản thừa ngay.
+  const fonts = new Map();
   st.walk({
     beginTextBlock(bbox) { block = bbox; },
     beginLine(bbox) { cur = { bbox, block, chars: [] }; },
-    onChar(c, origin, font, size, quad, color) { cur.chars.push({ c, origin, font, size, quad, color, key: keyOf(font) }); },
+    onChar(c, origin, f, size, quad, color) {
+      let font = fonts.get(f.pointer);
+      if (font) f.destroy(); else { font = f; fonts.set(f.pointer, f); }
+      cur.chars.push({ c, origin, font, size, quad, color, key: keyOf(font) });
+    },
     endLine() { if (cur && cur.chars.length) lines.push(cur); cur = null; },
   });
-  return { st, lines };
+  // Giải phóng ngay: MuPDF.js chỉ tự giải phóng vùng nhớ WASM khi bộ dọn rác JS chạy, mà bộ dọn rác không "thấy" WASM đầy.
+  // Phông của từng ký tự đã được giữ riêng (keep) nên vẫn dùng được sau khi huỷ trang chữ.
+  st.destroy();
+  return { lines, fonts: [...fonts.values()] };
 }
 
 /** Đọc các dòng nhìn thấy: ghép các mảnh cùng đường chân chữ, nằm sát nhau (khoảng cách < 0,6 cỡ chữ),
  *  ví dụ phần đầu dòng gốc và phần vừa sửa được ghi thêm ở cuối luồng nội dung. Ô bảng, cột kế bên cách xa hơn nên không bị ghép. */
 export function readLines(page) {
-  const { st, lines: raw } = readRawLines(page);
+  const { lines: raw, fonts } = readRawLines(page);
   const base = (l) => l.chars[0].origin[1];
   const used = new Set(), out = [];
   const sorted = raw.map((l, i) => ({ l, i })).sort((a, b) => base(a.l) - base(b.l) || a.l.bbox[0] - b.l.bbox[0]);
@@ -55,30 +65,44 @@ export function readLines(page) {
         const x0 = Math.min(...group.map((g) => g.bbox[0])), x1 = Math.max(...group.map((g) => g.bbox[2]));
         const gap = Math.max(m.bbox[0] - x1, x0 - m.bbox[2]);
         // chỉ ghép mảnh nối tiếp nhau; mảnh chồng lên nhau (biểu tượng vẽ đè, chữ in đè) giữ riêng
-        if (gap >= -1 && gap < size * 0.6) { group.push(m); used.add(j); grew = true; }
+        // khung ký tự của vài phông (Type3 Notion) lệch ~2,7 pt nên cho phép chồng nhẹ tới 0,3 cỡ chữ
+        if (gap >= -size * 0.3 && gap < size * 0.6) { group.push(m); used.add(j); grew = true; }
       }
     }
-    const chars = group.flatMap((g) => g.chars).sort((a, b) => a.origin[0] - b.origin[0]);
+    group.sort((a, b) => a.bbox[0] - b.bbox[0]);
+    const chars = [];
+    for (const g of group) {
+      const last = chars[chars.length - 1], firstC = g.chars[0];
+      // mảnh sau cách mảnh trước một khoảng như dấu cách mà không có ký tự cách: chèn dấu cách ảo (để chữ không dính khi copy/tìm)
+      if (last && !/\s/.test(last.c) && !/\s/.test(firstC.c) && firstC.origin[0] - Math.max(last.quad[2], last.origin[0]) > firstC.size * 0.15) {
+        chars.push({ ...last, c: ' ', virtual: true, origin: [Math.max(last.quad[2], last.origin[0]), last.origin[1]], quad: last.quad.slice() });
+      }
+      chars.push(...g.chars.slice().sort((a, b) => a.origin[0] - b.origin[0]));
+    }
     const bbox = [Math.min(...group.map((g) => g.bbox[0])), Math.min(...group.map((g) => g.bbox[1])), Math.max(...group.map((g) => g.bbox[2])), Math.max(...group.map((g) => g.bbox[3]))];
     out.push({ bbox, block: group[0].block, chars, text: chars.map((x) => x.c).join('') });
   }
   // thứ tự đọc: theo khối gốc của MuPDF (giữ cột), trong khối thì trên → dưới
   out.sort((a, b) => (a.block && b.block && (a.block[0] !== b.block[0] || a.block[1] !== b.block[1]) ? (a.block[1] - b.block[1]) || (a.block[0] - b.block[0]) : 0) || a.bbox[1] - b.bbox[1] || a.bbox[0] - b.bbox[0]);
-  return { st, lines: out };
+  return { lines: out, fonts };
 }
+/** Huỷ các đối tượng phông của tài liệu mà readLines đã giữ (gọi khi dùng xong các dòng). */
+export function releaseLines(r) { for (const f of (r && r.fonts) || []) { try { f.destroy(); } catch { /* đã huỷ */ } } }
 
 /** Dòng chữ của trang ở dạng gửi được qua postMessage (cho giao diện). */
 export function lineInfo(page) {
+  // (trang do người gọi quản lý)
   // chỉ số i khớp với editLine(): đếm trên các dòng có chữ
-  return readLines(page).lines.filter((l) => l.text.trim()).map((l, i) => {
+  const r = readLines(page);
+  try { return r.lines.filter((l) => l.text.trim()).map((l, i) => {
     const c = l.chars.find((x) => !/\s/.test(x.c)) || l.chars[0];
     return { i, text: l.text.replace(/\s+$/, ''), bbox: l.bbox, size: +c.size.toFixed(2), color: c.color, bold: !!c.font.isBold(), italic: !!c.font.isItalic(), serif: !!c.font.isSerif() || /times|serif|roman|georgia|cambria|garamond/i.test(c.font.getName()),
       // vị trí x của từng ký tự để đặt con trỏ đúng chỗ người dùng bấm
       xs: l.chars.map((x) => +x.origin[0].toFixed(1)) };
-  });
+  }); } finally { releaseLines(r); }
 }
 
-export const pageText = (page) => readLines(page).lines.map((l) => l.text).join('\n');
+export const pageText = (page) => { const r = readLines(page); try { return r.lines.map((l) => l.text).join('\n'); } finally { releaseLines(r); } };
 
 /** Toàn bộ phông dự phòng trong fonts/ (đều đủ dấu tiếng Việt). */
 export const FONT_FILES = [
@@ -152,7 +176,9 @@ function widthScore(pairs, file, opts) {
 const INK_SCALE = 2;
 function grayRender(page) {
   const pm = page.toPixmap([INK_SCALE, 0, 0, INK_SCALE, 0, 0], mupdf.ColorSpace.DeviceGray, false, true);
-  return { px: pm.getPixels().slice(), w: pm.getWidth(), h: pm.getHeight(), x: pm.getX(), y: pm.getY(), stride: pm.getStride() };
+  const r = { px: pm.getPixels().slice(), w: pm.getWidth(), h: pm.getHeight(), x: pm.getX(), y: pm.getY(), stride: pm.getStride() };
+  pm.destroy();
+  return r;
 }
 const lum = (c) => (!c || !c.length ? 0 : c.length === 1 ? c[0] : c.length === 4 ? (1 - c[3]) * (1 - (c[0] + c[1] + c[2]) / 3) : 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]);
 function inkOf(r, chars, textLum) {
@@ -181,7 +207,9 @@ function inkWith(file, chars, bounds, opts) {
     content += `BT /F ${+c.size.toFixed(3)} Tf 1 0 0 1 ${(c.origin[0] - bounds[0]).toFixed(3)} ${(H - (c.origin[1] - bounds[1])).toFixed(3)} Tm <${g.toString(16).padStart(4, '0')}> Tj ET\n`;
   }
   tmp.insertPage(-1, tmp.addPage([0, 0, bounds[2] - bounds[0], H], 0, res, content));
-  const r = grayRender(tmp.loadPage(0));
+  const tp = tmp.loadPage(0);
+  const r = grayRender(tp);
+  tp.destroy(); tmp.destroy();
   const shifted = chars.map((c) => ({ ...c, quad: c.quad.map((v, i) => v - (i % 2 ? bounds[1] : bounds[0])) }));
   return inkOf(r, shifted, 0);
 }
@@ -282,7 +310,7 @@ function thinRules(page) {
     fillPath(path, eo, ctm, cs, color) { keep(bounds(path, ctm), color, 'fill'); },
     strokePath(path, st, ctm, cs, color) { let lw = 1; try { lw = st.getLineWidth ? st.getLineWidth() * Math.hypot(ctm[0], ctm[1]) : 1; } catch { /* mặc định */ } keep(bounds(path, ctm), color, 'stroke', lw); },
   });
-  page.run(dev, mupdf.Matrix.identity); dev.close();
+  page.run(dev, mupdf.Matrix.identity); dev.close(); dev.destroy();
   return out;
 }
 
@@ -307,6 +335,9 @@ function alignmentOf(lines, line, pageWidth) {
   const others = lines.filter((l) => l !== line && Math.abs(l.bbox[3] - l.bbox[1] - (line.bbox[3] - line.bbox[1])) < 20);
   const sharedLeft = others.filter((l) => Math.abs(l.bbox[0] - line.bbox[0]) < 1.5).length;
   if (sharedLeft >= 2) return 'left';
+  // có chữ khác cùng hàng (ô bảng, nhãn–giá trị, cột kế bên): không phải dòng căn giữa/căn phải độc lập
+  const mid = (line.bbox[1] + line.bbox[3]) / 2;
+  if (lines.some((l) => l !== line && l.bbox[1] < mid && l.bbox[3] > mid)) return 'left';
   const left = Math.min(...lines.map((l) => l.bbox[0]));
   // lề phải: mép phải xa nhất của chữ, hoặc lề đối xứng với lề trái khi các dòng không chạy tới lề phải (căn trái, không căn đều)
   const right = Math.max(...lines.map((l) => l.bbox[2]), pageWidth ? pageWidth - left : 0);
@@ -320,11 +351,14 @@ function alignmentOf(lines, line, pageWidth) {
 /** Biên phải khả dụng: tới chữ gần nhất phía bên phải (cột/ô bảng kế bên) trong dải ±3 dòng; không có thì lề phải nội dung. */
 function rightLimit(lines, line, x) {
   const [, y0, , y1] = line.bbox, h = y1 - y0;
+  // khe tối thiểu trước cột/ô kế bên: ≥ 0,8 cỡ chữ, để chữ mới không dính sang (dính thì bị ghép thành một dòng)
+  const sz = (line.chars.find((c) => !/\s/.test(c.c)) || line.chars[0]).size;
+  const gutter = Math.max(4, sz * 0.8);
   let lim = Math.max(...lines.map((l) => l.bbox[2]));
   for (const l of lines) {
     if (l === line || l.bbox[0] <= line.bbox[2] - 1) continue;
     const gap = Math.max(0, l.bbox[1] - y1, y0 - l.bbox[3]);
-    if (gap < 3 * h) lim = Math.min(lim, l.bbox[0] - 4);
+    if (gap < 3 * h) lim = Math.min(lim, l.bbox[0] - gutter);
   }
   return Math.max(lim, line.bbox[2]);
 }
@@ -339,6 +373,22 @@ function shrinkQuad(q, k = 0.25) {
   const [ulx, uly, urx, ury, llx, lly, lrx, lry] = q;
   const top = (a, b) => a + (b - a) * k, bot = (a, b) => b - (b - a) * k;
   return [ulx, top(uly, lly), urx, top(ury, lry), llx, bot(uly, lly), lrx, bot(ury, lry)];
+}
+
+/** Đọc bảng ToUnicode đang có của phông (bfchar và bfrange đơn giản) thành Map(gid → chuỗi). */
+function readToUnicode(fontObj) {
+  const map = new Map();
+  try {
+    const tu = fontObj.get('ToUnicode'); if (!tu || tu.isNull()) return map;
+    const txt = tu.readStream().asString();
+    const dec = (h) => { let out = ''; for (let i = 0; i + 4 <= h.length; i += 4) { const u = parseInt(h.slice(i, i + 4), 16); if (u >= 0xd800 && u <= 0xdbff && i + 8 <= h.length) { const lo = parseInt(h.slice(i + 4, i + 8), 16); out += String.fromCodePoint(0x10000 + ((u - 0xd800) << 10) + (lo - 0xdc00)); i += 4; } else out += String.fromCharCode(u); } return out; };
+    for (const blk of txt.split('beginbfchar').slice(1)) for (const m of blk.split('endbfchar')[0].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) map.set(parseInt(m[1], 16), dec(m[2]));
+    for (const blk of txt.split('beginbfrange').slice(1)) for (const m of blk.split('endbfrange')[0].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      const a = parseInt(m[1], 16), b = parseInt(m[2], 16), base = parseInt(m[3], 16);
+      for (let g = a; g <= b && g - a < 4096; g++) map.set(g, String.fromCodePoint(base + (g - a)));
+    }
+  } catch { /* không đọc được: coi như trống */ }
+  return map;
 }
 
 /** CMap ToUnicode cho phông Identity-H: glyph id (2 byte) → chuỗi Unicode (UTF-16BE). */
@@ -370,7 +420,11 @@ function buildSequence(findChars, replace, tailChars) {
  */
 export function replaceText(doc, pageIndex, find, replace, opts) {
   const page = doc.loadPage(pageIndex);
-  const { lines } = readLines(page);
+  const rl = readLines(page);
+  try { return replaceTextIn(page, rl, doc, pageIndex, find, replace, opts); } finally { releaseLines(rl); page.destroy(); }
+}
+function replaceTextIn(page, rl, doc, pageIndex, find, replace, opts) {
+  const { lines } = rl;
   const want = NFC(find);
   let line = null, s = -1;
   for (const l of lines) { const t = NFC(l.text); const i = t.indexOf(want); if (i >= 0 && t.length === l.text.length) { line = l; s = i; break; } }
@@ -384,7 +438,11 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
  */
 export function editLine(doc, pageIndex, lineIndex, newText, opts) {
   const page = doc.loadPage(pageIndex);
-  const { lines } = readLines(page);
+  const rl = readLines(page);
+  try { return editLineIn(page, rl, doc, pageIndex, lineIndex, newText, opts); } finally { releaseLines(rl); page.destroy(); }
+}
+function editLineIn(page, rl, doc, pageIndex, lineIndex, newText, opts) {
+  const { lines } = rl;
   const vis = lines.filter((l) => l.text.trim());
   const line = vis[lineIndex];
   if (!line) return { status: 'not-found', reason: 'bad-line' };
@@ -447,7 +505,8 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
   const pb = page.getBounds();
   const align = alignmentOf(lines, line, pb[2] - pb[0]);
   const para = align === 'left' ? paragraphAfter(lines, line) : { lines: [], spacing: null };
-  const needed = new Set([line, ...para.lines].flatMap((l) => l.chars.map((c) => c.key)));
+  const near = lines.filter((l) => l.bbox[1] < line.bbox[3] + (line.bbox[3] - line.bbox[1]) * 1.5 + (para.lines.length ? para.lines[para.lines.length - 1].bbox[3] - line.bbox[3] : 0) && l.bbox[3] > line.bbox[1] - (line.bbox[3] - line.bbox[1]) * 1.5);
+  const needed = new Set([line, ...para.lines, ...near].flatMap((l) => l.chars.map((c) => c.key)));
   const styles = analyzePage(page, lines, opts, needed);
 
   // Dòng căn giữa/căn phải: viết lại CẢ dòng để đặt lại vị trí theo kiểu căn.
@@ -465,16 +524,22 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
   }
 
   // --- phông cho từng kiểu: dùng lại phông gốc (có tên, đủ ký tự) hoặc phông dự phòng đã nhận dạng ---
+  const choice = new Map();
+  const choose = (k, text) => {
+    const st = styles.get(k);
+    if (!st) return null;
+    if (!isType3(st.orig) && covers(st.orig, text)) return { font: st.orig, strategy: 'A-original', label: baseName(st.orig) };
+    const f = loadFallback(st.file, opts);
+    if (!covers(f, text)) return null;
+    const strategy = st.kind === 'same' ? 'B-same-family' : st.kind === 'matched' ? 'C-matched' : st.kind === 'borrowed' ? 'C-borrowed' : 'C-generic';
+    return { font: f, strategy, label: st.file.replace(/\.(ttf|otf)$/, ''), match: st.match };
+  };
   const perKey = new Map();
   for (const it of paraSeq) { const k = it.src.key; if (!perKey.has(k)) perKey.set(k, ''); perKey.set(k, perKey.get(k) + it.ch); }
-  const choice = new Map();
   for (const [k, text] of perKey) {
-    const st = styles.get(k);
-    if (!isType3(st.orig) && covers(st.orig, text)) { choice.set(k, { font: st.orig, strategy: 'A-original', label: baseName(st.orig) }); continue; }
-    const f = loadFallback(st.file, opts);
-    if (!covers(f, text)) return { status: 'no-font', fontName: baseName(st.orig), fallback: st.file };
-    const strategy = st.kind === 'same' ? 'B-same-family' : st.kind === 'matched' ? 'C-matched' : st.kind === 'borrowed' ? 'C-borrowed' : 'C-generic';
-    choice.set(k, { font: f, strategy, label: st.file.replace(/\.(ttf|otf)$/, ''), match: st.match });
+    const c = choose(k, text);
+    if (!c) { const st = styles.get(k); return { status: 'no-font', fontName: st ? baseName(st.orig) : k, fallback: st && st.file }; }
+    choice.set(k, c);
   }
   const glyph = (it) => { const ch = choice.get(it.src.key); const g = gid(ch.font, it.ch); return { ch, g, w: ch.font.advanceGlyph(g, 0) * it.src.size }; };
   const widthOf = (items) => items.reduce((t, it) => t + glyph(it).w, 0);
@@ -511,22 +576,48 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
   };
 
   // --- xoá thật chữ cũ: cụm + đuôi dòng (+ các dòng sau của đoạn khi dàn lại) ---
-  const killChars = plan ? editChars.concat(...para.lines.map((l) => l.chars)) : editChars;
+  const killChars = (plan ? editChars.concat(...para.lines.map((l) => l.chars)) : editChars).filter((c) => !c.virtual); // dấu cách ảo không có hình vẽ
+  // ký tự lân cận KHÔNG thuộc phần bị xoá: chụp lại để kiểm tra sau khi xoá
+  const killSet = new Set(killChars);
+  const kb = [Math.min(...killChars.map((c) => c.quad[0])) - 30, Math.min(...killChars.map((c) => c.quad[1])) - 20, Math.max(...killChars.map((c) => c.quad[2])) + 30, Math.max(...killChars.map((c) => c.quad[5])) + 20];
+  const guard = near.flatMap((l) => l.chars).filter((c) => !c.virtual && !killSet.has(c) && !/\s/.test(c.c) && c.origin[0] > kb[0] && c.origin[0] < kb[2] && c.origin[1] > kb[1] && c.origin[1] < kb[3]);
   const annot = page.createAnnotation('Redact');
-  annot.setQuadPoints(killChars.map((c) => shrinkQuad(c.quad)));
+  // Ký tự đầu tiên bị xoá: thu hẹp mép trái (khung ký tự của nhiều phông chồng sang ký tự đứng trước,
+  // redaction sẽ xoá luôn ký tự đó, vd. "study:" → "stud:").
+  const insetLeft = (q, k = 0.45) => { const w = q[2] - q[0]; return [q[0] + w * k, q[1], q[2], q[3], q[4] + w * k, q[5], q[6], q[7]]; };
+  annot.setQuadPoints(killChars.map((c, i) => shrinkQuad(i === 0 && start > 0 ? insetLeft(c.quad) : c.quad)));
   page.applyRedactions(false, mupdf.PDFPage.REDACT_IMAGE_NONE, mupdf.PDFPage.REDACT_LINE_ART_NONE, mupdf.PDFPage.REDACT_TEXT_REMOVE);
+  annot.destroy(); // chú thích giữ trang, trang giữ cả tài liệu: huỷ ngay để không giữ bộ nhớ
+  // Redaction xoá ký tự có KHUNG HÌNH VẼ chạm vùng xoá; khung của phông Type3 có thể rộng hơn chữ, nên ký tự
+  // đứng cạnh có thể bị xoá oan (vd. "study:" → "stud:"). Tìm và vẽ lại chúng đúng vị trí, đúng kiểu.
+  const rescued = [];
+  if (guard.length) {
+    const after = readRawLines(page);
+    const alive = after.lines.flatMap((l) => l.chars);
+    for (const g of guard) {
+      const ok = alive.some((a) => a.c === g.c && Math.abs(a.origin[0] - g.origin[0]) < 0.6 && Math.abs(a.origin[1] - g.origin[1]) < 0.6);
+      if (!ok) rescued.push(g);
+    }
+    for (const f of after.fonts) { try { f.destroy(); } catch { /* đã huỷ */ } }
+  }
   // xoá nét trang trí cũ: lượt redaction riêng chỉ bỏ nét vẽ nằm gọn trong ô, không đụng chữ
   let decoDone = [];
   if (decos.length) {
     const before = thinRules(page).length;
-    for (const d of decos) { const a2 = page.createAnnotation('Redact'); a2.setRect([d.bbox[0] - 0.4, d.bbox[1] - 0.4, d.bbox[2] + 0.4, d.bbox[3] + 0.4]); }
+    const made = [];
+    for (const d of decos) { const a2 = page.createAnnotation('Redact'); a2.setRect([d.bbox[0] - 0.4, d.bbox[1] - 0.4, d.bbox[2] + 0.4, d.bbox[3] + 0.4]); made.push(a2); }
     page.applyRedactions(false, mupdf.PDFPage.REDACT_IMAGE_NONE, mupdf.PDFPage.REDACT_LINE_ART_REMOVE_IF_COVERED, mupdf.PDFPage.REDACT_TEXT_NONE);
+    made.forEach((a2) => a2.destroy());
     const removed = before - thinRules(page).length;
     if (removed >= decos.length) decoDone = decos; // chỉ vẽ lại khi chắc chắn nét cũ đã mất (tránh gạch đôi)
   }
 
   // --- các "mảnh" cần vẽ: [{ x, y, items }] (một mảnh = một từ khi dàn lại, cả dòng khi không) ---
   const pieces = plan ? plan.pieces : [{ x, y: first.origin[1], items: lineSeq }];
+  for (const g of rescued) {
+    if (!choice.has(g.key)) { const c = choose(g.key, g.c); if (!c) continue; choice.set(g.key, c); }
+    pieces.push({ x: g.origin[0], y: g.origin[1], items: [{ ch: g.c, src: g }] });
+  }
 
   // --- gom thành các đoạn cùng phông/cỡ/màu ---
   const allRuns = [];
@@ -550,18 +641,27 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
   let fonts = res.get('Font');
   if (!fonts || fonts.isNull()) { fonts = doc.newDictionary(); res.put('Font', fonts); }
   fonts = fonts.resolve();
-  const keys = new Map(); let n = 1;
+  // Nhúng phông. doc.addFont() trả về CÙNG một đối tượng PDF cho cùng một phông (MuPDF lưu đệm theo nội dung phông),
+  // kể cả qua nhiều lần sửa: gom theo đối tượng PDF và GỘP bảng ToUnicode với bảng đã có, không ghi đè
+  // (ghi đè làm chữ của lần sửa trước thành ký tự rác khi tìm/copy).
+  const keys = new Map(); const groups = new Map(); let n = 1;
   for (const r of allRuns) {
     if (keys.has(r.font)) continue;
-    while (!fonts.get('LMEd' + n).isNull()) n++;
     const fo = doc.addFont(r.font);
-    // Tự ghi ToUnicode theo đúng chữ người dùng gõ: bảng cmap của phông nhúng gốc có thể ánh xạ dấu cách thành U+00A0
-    // (gặp ở PDF của Word và Canva), làm tìm kiếm/copy sai dù nhìn đúng.
-    const map = new Map();
-    for (const rr of allRuns) if (rr.font === r.font) rr.gids.forEach((g, i) => { if (!map.has(g)) map.set(g, rr.chars[i]); });
-    fo.resolve().put('ToUnicode', doc.addStream(toUnicodeCMap(map), {}));
-    fonts.put('LMEd' + n, fo); keys.set(r.font, 'LMEd' + n); n++;
+    const num = fo.isIndirect() ? fo.asIndirect() : -1;
+    let g = groups.get(num);
+    if (!g) {
+      // tìm khoá tài nguyên đã trỏ tới đối tượng này (lần sửa trước) để dùng lại
+      let name = null;
+      fonts.forEach((v, k) => { if (!name && v.isIndirect() && v.asIndirect() === num && /^LMEd/.test(String(k))) name = String(k); });
+      if (!name) { while (!fonts.get('LMEd' + n).isNull()) n++; name = 'LMEd' + n; n++; fonts.put(name, fo); }
+      g = { fo, name, map: readToUnicode(fo.resolve()) };
+      groups.set(num, g);
+    }
+    for (const rr of allRuns) if (rr.font === r.font) rr.gids.forEach((gd, i) => g.map.set(gd, rr.chars[i]));
+    keys.set(r.font, g.name);
   }
+  for (const g of groups.values()) g.fo.resolve().put('ToUnicode', doc.addStream(toUnicodeCMap(g.map), {}));
   let content = '';
   for (const d of decoDone) {
     const [ux0, uy0, ux1, uy1] = mapDeco(d);
@@ -603,7 +703,15 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
     centerShift: +(((x + shown / 2) - (oldLeft + oldEnd) / 2)).toFixed(1), rightShift: +((x + shown) - oldEnd).toFixed(1),
     decorations: decos.length ? { found: decos.map((d) => d.type), redrawn: decoDone.length } : null,
     reflow: plan ? { lines: plan.lineCount, was: 1 + para.lines.length, added: plan.added, justified: plan.justified } : null,
+    rescued: rescued.length ? rescued.map((g) => g.c).join('') : null,
   };
+}
+
+/** Độ rộng tự nhiên của dấu cách tại ký tự c: phông đã chọn cho kiểu đó, nếu không có thì phông gốc. */
+function spaceWidth(c, glyph) {
+  try { return glyph({ ch: ' ', src: c }).w; } catch { /* kiểu này không nằm trong phần được viết lại */ }
+  try { const g = c.font.encodeCharacter(32); if (g > 0) return c.font.advanceGlyph(g, 0) * c.size; } catch { /* phông Type3 */ }
+  return 0;
 }
 
 /** Lập kế hoạch dàn lại đoạn. Trả về null nếu không cần (ngắt dòng như cũ và vừa chỗ) hoặc không làm được. */
@@ -621,7 +729,8 @@ function planReflow({ lines, line, para, paraSeq, lineSeq, x, R, width, avail, p
     for (let i = 0; i + 1 < l.chars.length; i++) {
       const c = l.chars[i]; if (!/\s/.test(c.c)) continue;
       const d = l.chars[i + 1].origin[0] - c.origin[0]; if (d <= 0) continue;
-      real += d; nat += glyph({ ch: ' ', src: c }).w;
+      const w = spaceWidth(c, glyph); if (!w) continue;
+      real += d; nat += w;
     }
     return nat > 0 && real / nat > 1.04; // đo trên mẫu: căn trái 0,99–1,01; căn đều ≥ 1,07
   };
