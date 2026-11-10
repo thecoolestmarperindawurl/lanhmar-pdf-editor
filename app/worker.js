@@ -1,7 +1,7 @@
 // Luồng nền: giữ tài liệu PDF và chạy MuPDF (WebAssembly) để giao diện không bị đứng.
 // Background thread: owns the PDF document and runs MuPDF (WebAssembly) so the UI never freezes.
 import * as mupdf from '../vendor/mupdf/mupdf.js';
-import { useMupdf, lineInfo, editLine } from '../src/edit.mjs';
+import { useMupdf, lineInfo, editLine } from '../src/edit.mjs?v=7';
 
 useMupdf(mupdf);
 
