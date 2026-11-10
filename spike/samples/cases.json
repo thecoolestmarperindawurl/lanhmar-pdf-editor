@@ -1,0 +1,49 @@
+{
+  "s1-word-times": {
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "expect": ["BÁO CÁO KẾT QUẢ KINH DOANH QUÝ 3", "12,5 tỷ đồng", "Đà Nẵng và Cần Thơ"],
+    "cases": [
+      { "id": "c1", "find": "12,5 tỷ đồng", "replace": "13,2 tỷ đồng", "note": "Đổi số, mọi ký tự đã có trong phông gốc" },
+      { "id": "c2", "find": "các nền tảng", "replace": "các kênh kỹ thuật số", "note": "Chữ dài hơn, có ký tự “ỹ” chưa từng xuất hiện trong file" },
+      { "id": "c3", "find": "QUÝ 3", "replace": "QUÝ 4", "note": "Tiêu đề in đậm, chữ số 4 không có trong phông đậm" }
+    ]
+  },
+  "s2-gdocs-arial": {
+    "label": "Kế hoạch kiểu Google Docs, phông Arial (Liberation Sans), có bảng",
+    "expect": ["Kế hoạch nội dung tháng 11", "Ngân sách", "20.000 người"],
+    "cases": [
+      { "id": "c1", "find": "15 triệu", "replace": "18 triệu", "note": "Sửa ô bảng, cùng độ dài" },
+      { "id": "c2", "find": "Facebook", "replace": "Facebook Ads", "note": "Ô bảng, chữ dài hơn, không được tràn sang cột bên" },
+      { "id": "c3", "find": "20.000 người", "replace": "25.000 người", "note": "Giữa câu trong đoạn văn" }
+    ]
+  },
+  "s3-calibri-2col": {
+    "label": "Bản tin hai cột, phông Calibri (Carlito)",
+    "expect": ["Bản tin học tập tuần 45", "ba nguyên tắc", "trợ giảng"],
+    "cases": [
+      { "id": "c1", "find": "ba nguyên tắc", "replace": "năm nguyên tắc cốt lõi", "note": "Cột trái, chữ dài hơn, không được lấn sang cột phải" }
+    ]
+  },
+  "s4-unknown-serif": {
+    "label": "Văn bản hợp đồng, phông lạ (FreeSerif) không có trong bộ dự phòng",
+    "expect": ["Điều 3.", "hợp đồng này", "đại diện hai bên"],
+    "cases": [
+      { "id": "c1", "find": "hợp đồng này", "replace": "phụ lục kỹ thuật này", "note": "Thiếu ký tự “ỹ”, buộc thay phông khác họ" }
+    ]
+  },
+  "s5-slide-inter": {
+    "label": "Slide nền tím chữ trắng/cam, phông Inter cỡ lớn",
+    "expect": ["Chiến lược nội dung 2027", "Tăng 30% lượt xem video ngắn"],
+    "cases": [
+      { "id": "c1", "find": "30%", "replace": "45%", "note": "Giữ màu chữ và nền, chữ số mới không có trong phông gốc" },
+      { "id": "c2", "find": "2027", "replace": "2028", "note": "Tiêu đề đậm cỡ lớn" }
+    ]
+  },
+  "s6-scan": {
+    "label": "Bản scan (chỉ có ảnh)",
+    "expect": ["12,5 tỷ đồng"],
+    "cases": [
+      { "id": "c1", "find": "12,5 tỷ đồng", "replace": "13,2 tỷ đồng", "note": "Không có lớp chữ: cần nhận dạng chữ (OCR) trước" }
+    ]
+  }
+}

@@ -1,0 +1,469 @@
+[
+  {
+    "sample": "s1-word-times",
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "id": "c1",
+    "page": 1,
+    "find": "12,5 tỷ đồng",
+    "replace": "13,2 tỷ đồng",
+    "note": "Đổi số, mọi ký tự đã có trong phông gốc",
+    "extractOk": true,
+    "missing": [],
+    "chars": 284,
+    "status": "ok",
+    "strategy": "A-original",
+    "fonts": [
+      "LiberationSerif (A-original)"
+    ],
+    "fontName": "LiberationSerif",
+    "fallback": "LiberationSerif",
+    "match": null,
+    "runs": 1,
+    "size": 12,
+    "width": 438.9,
+    "oldWidth": 456.8,
+    "avail": 456.8,
+    "tz": 100,
+    "overflow": false,
+    "region": [
+      69.75,
+      110.056640625,
+      526.5038452148438,
+      123.345703125
+    ],
+    "lineBox": [
+      69.75,
+      110.056640625,
+      526.5038452148438,
+      123.345703125
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s1-word-times",
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "id": "c2",
+    "page": 1,
+    "find": "các nền tảng",
+    "replace": "các kênh kỹ thuật số",
+    "note": "Chữ dài hơn, có ký tự “ỹ” chưa từng xuất hiện trong file",
+    "extractOk": true,
+    "missing": [],
+    "chars": 284,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSerif-Regular (B-same-family)"
+    ],
+    "fontName": "LiberationSerif",
+    "fallback": "LiberationSerif-Regular",
+    "match": null,
+    "runs": 1,
+    "size": 12,
+    "width": 347.2,
+    "oldWidth": 311.6,
+    "avail": 311.6,
+    "tz": 89,
+    "overflow": false,
+    "region": [
+      214.8694610595703,
+      128.056640625,
+      526.5096435546875,
+      141.345703125
+    ],
+    "lineBox": [
+      69.75,
+      128.056640625,
+      526.5096435546875,
+      141.345703125
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s1-word-times",
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "id": "c3",
+    "page": 1,
+    "find": "QUÝ 3",
+    "replace": "QUÝ 4",
+    "note": "Tiêu đề in đậm, chữ số 4 không có trong phông đậm",
+    "extractOk": true,
+    "missing": [],
+    "chars": 284,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSerif-Bold (B-same-family)"
+    ],
+    "fontName": "LiberationSerif-Bold",
+    "fallback": "LiberationSerif-Bold",
+    "match": null,
+    "runs": 1,
+    "size": 16,
+    "width": 47.5,
+    "oldWidth": 47.5,
+    "avail": 119.4,
+    "tz": 100,
+    "overflow": false,
+    "region": [
+      407.06414794921875,
+      71.99441528320312,
+      454.60991894531253,
+      89.71039581298828
+    ],
+    "lineBox": [
+      141.62109375,
+      71.99441528320312,
+      454.6079406738281,
+      89.71039581298828
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s2-gdocs-arial",
+    "label": "Kế hoạch kiểu Google Docs, phông Arial (Liberation Sans), có bảng",
+    "id": "c1",
+    "page": 1,
+    "find": "15 triệu",
+    "replace": "18 triệu",
+    "note": "Sửa ô bảng, cùng độ dài",
+    "extractOk": true,
+    "missing": [],
+    "chars": 156,
+    "status": "ok",
+    "strategy": "A-original",
+    "fonts": [
+      "LiberationSans (A-original)"
+    ],
+    "fontName": "LiberationSans",
+    "fallback": "LiberationSans",
+    "match": null,
+    "runs": 1,
+    "size": 10.99,
+    "width": 36.7,
+    "oldWidth": 36.7,
+    "avail": 140.8,
+    "tz": 100,
+    "overflow": false,
+    "region": [
+      213.75,
+      152.04652404785156,
+      250.42326416015624,
+      164.3300018310547
+    ],
+    "lineBox": [
+      213.75,
+      152.04652404785156,
+      250.4137725830078,
+      164.3300018310547
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s2-gdocs-arial",
+    "label": "Kế hoạch kiểu Google Docs, phông Arial (Liberation Sans), có bảng",
+    "id": "c2",
+    "page": 1,
+    "find": "Facebook",
+    "replace": "Facebook Ads",
+    "note": "Ô bảng, chữ dài hơn, không được tràn sang cột bên",
+    "extractOk": true,
+    "missing": [],
+    "chars": 156,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSans-Regular (B-same-family)"
+    ],
+    "fontName": "LiberationSans",
+    "fallback": "LiberationSans-Regular",
+    "match": null,
+    "runs": 1,
+    "size": 10.99,
+    "width": 70.3,
+    "oldWidth": 48.3,
+    "avail": 140.8,
+    "tz": 100,
+    "overflow": false,
+    "region": [
+      69,
+      152.04652404785156,
+      139.286396484375,
+      164.3300018310547
+    ],
+    "lineBox": [
+      69,
+      152.04652404785156,
+      117.27471160888672,
+      164.3300018310547
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s2-gdocs-arial",
+    "label": "Kế hoạch kiểu Google Docs, phông Arial (Liberation Sans), có bảng",
+    "id": "c3",
+    "page": 1,
+    "find": "20.000 người",
+    "replace": "25.000 người",
+    "note": "Giữa câu trong đoạn văn",
+    "extractOk": true,
+    "missing": [],
+    "chars": 156,
+    "status": "ok",
+    "strategy": "A-original",
+    "fonts": [
+      "LiberationSans (A-original)"
+    ],
+    "fontName": "LiberationSans",
+    "fallback": "LiberationSans",
+    "match": null,
+    "runs": 1,
+    "size": 10.99,
+    "width": 229,
+    "oldWidth": 228.9,
+    "avail": 228.9,
+    "tz": 99,
+    "overflow": false,
+    "region": [
+      276.15814208984375,
+      89.79651641845703,
+      505.10205078125,
+      102.07999420166016
+    ],
+    "lineBox": [
+      56.25,
+      89.79651641845703,
+      505.10205078125,
+      102.07999420166016
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s3-calibri-2col",
+    "label": "Bản tin hai cột, phông Calibri (Carlito)",
+    "id": "c1",
+    "page": 1,
+    "find": "ba nguyên tắc",
+    "replace": "năm nguyên tắc cốt lõi",
+    "note": "Cột trái, chữ dài hơn, không được lấn sang cột phải",
+    "extractOk": true,
+    "missing": [],
+    "chars": 435,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "Carlito-Regular (B-same-family)"
+    ],
+    "fontName": "Carlito-Regular",
+    "fallback": "Carlito-Regular",
+    "match": null,
+    "runs": 1,
+    "size": 10.99,
+    "width": 248.3,
+    "oldWidth": 209.3,
+    "avail": 250.3,
+    "tz": 100,
+    "overflow": false,
+    "region": [
+      56.25,
+      96.0311279296875,
+      304.5716455078125,
+      109.4527587890625
+    ],
+    "lineBox": [
+      56.25,
+      96.0311279296875,
+      265.5173034667969,
+      109.4527587890625
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s4-unknown-serif",
+    "label": "Văn bản hợp đồng, phông lạ (FreeSerif) không có trong bộ dự phòng",
+    "id": "c1",
+    "page": 1,
+    "find": "hợp đồng này",
+    "replace": "phụ lục kỹ thuật này",
+    "note": "Thiếu ký tự “ỹ”, buộc thay phông khác họ",
+    "extractOk": true,
+    "missing": [],
+    "chars": 146,
+    "status": "ok",
+    "strategy": "C-matched",
+    "fonts": [
+      "LiberationSerif-Regular (C-matched)"
+    ],
+    "fontName": "FreeSerif",
+    "fallback": "LiberationSerif-Regular",
+    "match": {
+      "family": "LiberationSerif",
+      "perChar": 2.4,
+      "ink": 2.4
+    },
+    "runs": 1,
+    "size": 13,
+    "width": 321.8,
+    "oldWidth": 281.9,
+    "avail": 281.9,
+    "tz": 87,
+    "overflow": false,
+    "region": [
+      237.76242065429688,
+      85.60199737548828,
+      519.6986083984375,
+      98.59950256347656
+    ],
+    "lineBox": [
+      69.75,
+      85.60199737548828,
+      519.6986083984375,
+      98.59950256347656
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s5-slide-inter",
+    "label": "Slide nền tím chữ trắng/cam, phông Inter cỡ lớn",
+    "id": "c1",
+    "page": 1,
+    "find": "30%",
+    "replace": "45%",
+    "note": "Giữ màu chữ và nền, chữ số mới không có trong phông gốc",
+    "extractOk": true,
+    "missing": [],
+    "chars": 73,
+    "status": "ok",
+    "strategy": "C-borrowed",
+    "fonts": [
+      "Inter-Regular (C-borrowed)"
+    ],
+    "fontName": "Type3 (13 0 R)",
+    "fallback": "Inter-Regular",
+    "match": {
+      "family": "Inter"
+    },
+    "runs": 1,
+    "size": 27,
+    "width": 326.9,
+    "oldWidth": 325.2,
+    "avail": 494.7,
+    "tz": 100,
+    "overflow": false,
+    "region": [
+      160.716796875,
+      149.06982421875,
+      487.60400390625,
+      179.8271484375
+    ],
+    "lineBox": [
+      90,
+      149.06982421875,
+      485.90753173828125,
+      179.8271484375
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s5-slide-inter",
+    "label": "Slide nền tím chữ trắng/cam, phông Inter cỡ lớn",
+    "id": "c2",
+    "page": 1,
+    "find": "2027",
+    "replace": "2028",
+    "note": "Tiêu đề đậm cỡ lớn",
+    "extractOk": true,
+    "missing": [],
+    "chars": 73,
+    "status": "ok",
+    "strategy": "C-matched",
+    "fonts": [
+      "Inter-Bold (C-matched)"
+    ],
+    "fontName": "Type3 (8 0 R)",
+    "fallback": "Inter-Bold",
+    "match": {
+      "family": "Inter",
+      "perChar": 0.8,
+      "ink": 0
+    },
+    "runs": 1,
+    "size": 48,
+    "width": 124.1,
+    "oldWidth": 120.7,
+    "avail": 120.7,
+    "tz": 97,
+    "overflow": false,
+    "region": [
+      534.65625,
+      62.15625,
+      655.3801879882812,
+      117.140625
+    ],
+    "lineBox": [
+      60,
+      62.15625,
+      655.3801879882812,
+      117.140625
+    ],
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "pass": true
+  },
+  {
+    "sample": "s6-scan",
+    "label": "Bản scan (chỉ có ảnh)",
+    "id": "c1",
+    "page": 1,
+    "find": "12,5 tỷ đồng",
+    "replace": "13,2 tỷ đồng",
+    "note": "Không có lớp chữ: cần nhận dạng chữ (OCR) trước",
+    "extractOk": false,
+    "missing": [
+      "12,5 tỷ đồng"
+    ],
+    "chars": 0,
+    "status": "not-found",
+    "reason": "not-on-one-line",
+    "pass": false
+  }
+]
