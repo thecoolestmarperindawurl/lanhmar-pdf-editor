@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { replaceText, pageText } from './lib/edit.mjs';
+import { useMupdf, replaceText, pageText } from '../src/edit.mjs';
+useMupdf(mupdf);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');

@@ -1,6 +1,6 @@
 # Báo cáo thử chất lượng sửa chữ gốc (MuPDF.js 1.28.6)
 
-Sinh tự động bởi `node spike/run.mjs` lúc 2026-11-10 06:56 UTC. Bộ mẫu: PDF tiếng Việt do Chromium xuất (phông nhúng dạng tập con như Word/Google Docs/Canva). Đây là **mẫu tổng hợp**: chứng minh cơ chế, chưa thay được bộ PDF thật.
+Sinh tự động bởi `node spike/run.mjs` lúc 2026-11-10 07:13 UTC. Bộ mẫu: PDF tiếng Việt do Chromium xuất (phông nhúng dạng tập con như Word/Google Docs/Canva). Đây là **mẫu tổng hợp**: chứng minh cơ chế, chưa thay được bộ PDF thật.
 
 **Kết quả: 10/11 ca đạt** đủ cả 6 tiêu chí.
 

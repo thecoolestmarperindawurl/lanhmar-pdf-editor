@@ -12,7 +12,10 @@ Trình sửa PDF miễn phí cho mọi người của LANHMAR, mục tiêu **s�
 PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường chỉ nhúng ký tự đã dùng. Mục tiêu: bấm vào một dòng/đoạn → sửa → chữ dàn lại trong khung đó → phông khớp gần nhất (dự phòng phông có đủ dấu tiếng Việt, ví dụ Be Vietnam Pro / Noto Sans / Noto Serif) → chữ cũ bị **xoá thật** (redaction), không chỉ che trắng. Không hứa sửa như Word.
 
 ## Cấu trúc repo
-- `spike/lib/edit.mjs`: lõi sửa chữ (dùng chung cho Node và trình duyệt). Chọn phông theo từng nhóm ký tự: A dùng lại phông gốc nếu có tên và đủ ký tự → B phông cùng họ/đo bằng theo tên (Times→Liberation Serif, Arial→Liberation Sans, Calibri→Carlito, Inter) → C với phông lạ/Type3: chốt một họ cho cả trang bằng độ rộng ký tự gộp, chọn độ đậm từng phông bằng **lượng mực** (vẽ lại ký tự gốc bằng phông ứng viên, so điểm tối), phông quá ít ký tự mượn độ đậm của ký tự gần nhất. Kiểu chữ giữ **theo từng ký tự** khi dựng lại đuôi dòng (`buildSequence`).
+- `index.html` + `app/app.js`, `app/app.css`: giao diện web (song ngữ, brand LANHMAR). `app/worker.js`: Web Worker giữ tài liệu, chạy MuPDF, lệnh `open/render/lines/edit/undo/redo/save`. Phông dự phòng nạp bằng XHR đồng bộ trong Worker (được phép), có bộ đệm. Hoàn tác/làm lại dùng nhật ký MuPDF (`enableJournal`, `beginOperation`/`endOperation`/`abandonOperation`, `undo`/`redo`).
+- `vendor/mupdf/`: MuPDF.js bản dist (mupdf.js, mupdf-wasm.js, mupdf-wasm.wasm ~10 MB); cập nhật thì chép lại từ `node_modules/mupdf/dist` và sửa `VERSION`.
+- `src/edit.mjs`: lõi sửa chữ (dùng chung cho Node và trình duyệt; MuPDF tiêm vào bằng `useMupdf()`). API cho giao diện: `lineInfo(page)` (dòng nhìn thấy, có `xs` vị trí ký tự), `editLine(doc, page, lineIndex, newText, {loadFont})` (so khác biệt đầu/cuối, chỉ viết lại phần đổi). Chọn phông theo từng nhóm ký tự: A dùng lại phông gốc nếu có tên và đủ ký tự → B phông cùng họ/đo bằng theo tên (Times→Liberation Serif, Arial→Liberation Sans, Calibri→Carlito, Inter) → C với phông lạ/Type3: chốt một họ cho cả trang bằng độ rộng ký tự gộp, chọn độ đậm từng phông bằng **lượng mực** (vẽ lại ký tự gốc bằng phông ứng viên, so điểm tối), phông quá ít ký tự mượn độ đậm của ký tự gần nhất. Kiểu chữ giữ **theo từng ký tự** khi dựng lại đuôi dòng (`buildSequence`).
+- Dòng nhìn thấy (`readLines`): ghép các mảnh MuPDF cùng chân chữ, nối tiếp nhau (khoảng cách −1…0,6 cỡ chữ); không ghép mảnh chồng lên nhau (biểu tượng Canva vẽ đè).
 - `spike/run.mjs`: bộ thử 6 tiêu chí, `npm run spike` (mẫu tổng hợp) hoặc `node spike/run.mjs --real` (PDF thật trong `spike/samples/real/`, không commit). Báo cáo `spike/report/REPORT.md`, nhận định `spike/FINDINGS.md`.
 - `spike/make-samples.mjs`: sinh mẫu bằng Chromium (cần Playwright). Mẫu đã commit.
 - `fonts/`: phông dự phòng đủ dấu tiếng Việt (Liberation, Carlito, DejaVu, Inter) + `fonts/licenses/`. Caladea (thay Cambria) **thiếu dấu tiếng Việt**, không dùng.
@@ -27,6 +30,8 @@ PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường ch
 - Lượng mực phải tự xác định nền là điểm khác màu chữ nhất (chữ sáng trên nền tối thì nền là điểm tối nhất).
 - Luôn tự ghi ToUnicode cho chữ được viết: cmap phông nhúng của Word/Canva ánh xạ dấu cách sang U+00A0, làm tìm/copy sai.
 - Dòng căn giữa/căn phải: viết lại cả dòng và đặt lại vị trí (`alignmentOf`); dòng chạm lề trái luôn là căn trái.
+- **Không bao giờ `saveToBuffer('garbage=...')` trên tài liệu đang sửa**: dọn rác đánh số lại đối tượng, lần sửa sau làm mất chữ. Tải về = lưu thô (`compress=yes`) → mở bản sao → `subsetFonts()` → `garbage=compact` (đã kiểm: 0 điểm ảnh khác, CV 585→326 KB).
+- Ô sửa: không chọn sẵn cả dòng (gõ nhầm mất dòng); đặt con trỏ theo `xs` tại chỗ bấm.
 - Notion xuất PDF qua Headless Chrome: gần như toàn bộ là Type3, tiêu đề Inter SemiBold, tiêu đề bìa Inter Bold; gạch chân link mục lục là nét vẽ rời.
 
 ## Bước 1: thử nghiệm chất lượng (làm trước, chưa xây giao diện thật)
@@ -36,7 +41,7 @@ Bộ mẫu ~10 PDF tiếng Việt thật: xuất từ Word, Google Docs, Canva, 
 3. Bố cục quanh chỗ sửa giữ nguyên.
 4. File kết quả mở đúng trong Chrome, Acrobat Reader, và extract lại thấy chữ mới, không còn chữ cũ.
 Trạng thái 10/11/2026: mẫu tổng hợp 10/11 ca đạt (ca còn lại là bản scan, cần OCR); **bộ thật 7 file (5 bài giảng Notion, thư mời Word 2021, CV Canva): 26/26 ca đạt, ảnh không lộ đường sửa**. Chi tiết `spike/FINDINGS.md`. Bộ thật tải từ thư mục Drive của chủ dự án (id `10OS1QAeY3LMDaGPnjzDOiYmUIkbdbvwh`) qua `drive.usercontent.google.com` vào `spike/samples/real/` (không commit); thư mời và CV do chủ dự án gửi trực tiếp (có thông tin cá nhân, tuyệt đối không commit); còn thiếu mẫu InDesign/Google Docs.
-**Đã đạt → bước tiếp theo là xây giao diện bấm-vào-dòng-để-sửa** (thứ tự ưu tiên trong `spike/FINDINGS.md`). Không đạt → báo bằng số liệu, lùi về phương án chú thích + thao tác trang (PDF.js editor + pdf-lib).
+**Đã đạt → giao diện bấm-vào-dòng-để-sửa đã xây (10/11/2026)**: mở/kéo thả, sửa dòng ~0,35–0,75 s/lần, hoàn tác/làm lại, tải về có cắt phông, song ngữ, điện thoại. Việc tiếp: bật GitHub Pages, xử lý gạch chân rời, dàn lại đoạn, tích hợp Google Drive. Không đạt → báo bằng số liệu, lùi về phương án chú thích + thao tác trang (PDF.js editor + pdf-lib).
 
 ## Tích hợp với hệ LANHMAR (đã có sẵn, dùng lại)
 - Project Google Cloud của Drive Ebook Reader: project number `313294325944`, OAuth app đã **In production** với scope `drive.file` (không nhạy cảm, không cần xác minh). Trang Google Picker mẫu: `drive-picker.html` trong repo `lanhmar-hub`.

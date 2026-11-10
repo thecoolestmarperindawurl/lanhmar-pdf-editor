@@ -10,7 +10,10 @@
 //  4. Xoá thật các ký tự cũ bằng redaction (không vẽ ô, không đụng ảnh và nét vẽ).
 //  5. Mỗi đoạn cùng phông/cỡ/màu viết bằng một lệnh Tj; dùng lại phông nhúng gốc nếu nó có đủ ký tự, nếu không
 //     dùng phông dự phòng đã nhận dạng. Chữ mới rộng hơn khoảng trống thì co ngang (Tz) tối đa 85%, quá thì báo tràn.
-import * as mupdf from 'mupdf';
+// MuPDF được "tiêm" từ ngoài vào để cùng một file chạy được trong Node (import 'mupdf') và trong Web Worker
+// (import '../vendor/mupdf/mupdf.js'), vì Worker không hiểu tên gói trần như 'mupdf'.
+let mupdf = null;
+export function useMupdf(m) { mupdf = m; }
 
 const NFC = (s) => String(s).normalize('NFC');
 export const PT = (m, p) => [m[0] * p[0] + m[2] * p[1] + m[4], m[1] * p[0] + m[3] * p[1] + m[5]];
@@ -18,18 +21,63 @@ const baseName = (font) => String(font.getName() || '').replace(/^[A-Z]{6}\+/, '
 const keyOf = (font) => String(font.getName() || '');
 const isType3 = (font) => /^Type3/.test(baseName(font));
 
-/** Đọc các dòng chữ của trang kèm thông tin từng ký tự. */
-export function readLines(page) {
+/** Đọc các dòng chữ thô của MuPDF (một "dòng" có thể chỉ là một mảnh của dòng nhìn thấy). */
+function readRawLines(page) {
   const st = page.toStructuredText('preserve-whitespace');
   const lines = []; let block = null, cur = null;
   st.walk({
     beginTextBlock(bbox) { block = bbox; },
     beginLine(bbox) { cur = { bbox, block, chars: [] }; },
     onChar(c, origin, font, size, quad, color) { cur.chars.push({ c, origin, font, size, quad, color, key: keyOf(font) }); },
-    endLine() { if (cur && cur.chars.length) { cur.text = cur.chars.map((x) => x.c).join(''); lines.push(cur); } cur = null; },
+    endLine() { if (cur && cur.chars.length) lines.push(cur); cur = null; },
   });
   return { st, lines };
 }
+
+/** Đọc các dòng nhìn thấy: ghép các mảnh cùng đường chân chữ, nằm sát nhau (khoảng cách < 0,6 cỡ chữ),
+ *  ví dụ phần đầu dòng gốc và phần vừa sửa được ghi thêm ở cuối luồng nội dung. Ô bảng, cột kế bên cách xa hơn nên không bị ghép. */
+export function readLines(page) {
+  const { st, lines: raw } = readRawLines(page);
+  const base = (l) => l.chars[0].origin[1];
+  const used = new Set(), out = [];
+  const sorted = raw.map((l, i) => ({ l, i })).sort((a, b) => base(a.l) - base(b.l) || a.l.bbox[0] - b.l.bbox[0]);
+  for (const { l, i } of sorted) {
+    if (used.has(i)) continue;
+    used.add(i);
+    const group = [l];
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const { l: m, i: j } of sorted) {
+        if (used.has(j)) continue;
+        const size = Math.max(...group.flatMap((g) => g.chars.map((c) => c.size)), ...m.chars.map((c) => c.size));
+        if (Math.abs(base(m) - base(group[0])) > size * 0.25) continue;
+        const x0 = Math.min(...group.map((g) => g.bbox[0])), x1 = Math.max(...group.map((g) => g.bbox[2]));
+        const gap = Math.max(m.bbox[0] - x1, x0 - m.bbox[2]);
+        // chỉ ghép mảnh nối tiếp nhau; mảnh chồng lên nhau (biểu tượng vẽ đè, chữ in đè) giữ riêng
+        if (gap >= -1 && gap < size * 0.6) { group.push(m); used.add(j); grew = true; }
+      }
+    }
+    const chars = group.flatMap((g) => g.chars).sort((a, b) => a.origin[0] - b.origin[0]);
+    const bbox = [Math.min(...group.map((g) => g.bbox[0])), Math.min(...group.map((g) => g.bbox[1])), Math.max(...group.map((g) => g.bbox[2])), Math.max(...group.map((g) => g.bbox[3]))];
+    out.push({ bbox, block: group[0].block, chars, text: chars.map((x) => x.c).join('') });
+  }
+  // thứ tự đọc: theo khối gốc của MuPDF (giữ cột), trong khối thì trên → dưới
+  out.sort((a, b) => (a.block && b.block && (a.block[0] !== b.block[0] || a.block[1] !== b.block[1]) ? (a.block[1] - b.block[1]) || (a.block[0] - b.block[0]) : 0) || a.bbox[1] - b.bbox[1] || a.bbox[0] - b.bbox[0]);
+  return { st, lines: out };
+}
+
+/** Dòng chữ của trang ở dạng gửi được qua postMessage (cho giao diện). */
+export function lineInfo(page) {
+  // chỉ số i khớp với editLine(): đếm trên các dòng có chữ
+  return readLines(page).lines.filter((l) => l.text.trim()).map((l, i) => {
+    const c = l.chars.find((x) => !/\s/.test(x.c)) || l.chars[0];
+    return { i, text: l.text.replace(/\s+$/, ''), bbox: l.bbox, size: +c.size.toFixed(2), color: c.color, bold: !!c.font.isBold(), italic: !!c.font.isItalic(), serif: !!c.font.isSerif() || /times|serif|roman|georgia|cambria|garamond/i.test(c.font.getName()),
+      // vị trí x của từng ký tự để đặt con trỏ đúng chỗ người dùng bấm
+      xs: l.chars.map((x) => +x.origin[0].toFixed(1)) };
+  });
+}
+
 export const pageText = (page) => readLines(page).lines.map((l) => l.text).join('\n');
 
 /** Toàn bộ phông dự phòng trong fonts/ (đều đủ dấu tiếng Việt). */
@@ -278,7 +326,7 @@ function buildSequence(findChars, replace, tailChars) {
 }
 
 /**
- * Thay `find` bằng `replace` trên một trang. opts.loadFont(file) → dữ liệu phông dự phòng.
+ * Thay `find` bằng `replace` trên một trang (dùng cho bộ thử). opts.loadFont(file) → dữ liệu phông dự phòng.
  * Trả về báo cáo; không ném lỗi khi không tìm thấy (status = 'not-found').
  */
 export function replaceText(doc, pageIndex, find, replace, opts) {
@@ -288,7 +336,32 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   let line = null, s = -1;
   for (const l of lines) { const t = NFC(l.text); const i = t.indexOf(want); if (i >= 0 && t.length === l.text.length) { line = l; s = i; break; } }
   if (!line) return { status: 'not-found', reason: lines.some((l) => NFC(l.text).includes(want)) ? 'decomposed' : 'not-on-one-line' };
-  const e = s + [...want].length;
+  return editRange(doc, page, lines, line, s, s + [...want].length, replace, opts);
+}
+
+/**
+ * Sửa cả một dòng (dùng cho giao diện): `lineIndex` là chỉ số trong lineInfo(); `newText` là nội dung mới của dòng.
+ * Chỉ viết lại từ chỗ khác biệt đầu tiên; phần giống nhau ở đầu/cuối giữ nguyên kiểu chữ gốc.
+ */
+export function editLine(doc, pageIndex, lineIndex, newText, opts) {
+  const page = doc.loadPage(pageIndex);
+  const { lines } = readLines(page);
+  const vis = lines.filter((l) => l.text.trim());
+  const line = vis[lineIndex];
+  if (!line) return { status: 'not-found', reason: 'bad-line' };
+  const O = line.chars.map((c) => NFC(c.c)), N = [...NFC(newText)];
+  const oLen = O.length - (line.text.match(/\s+$/) || [''])[0].length; // bỏ khoảng trắng cuối dòng
+  let p = 0; while (p < oLen && p < N.length && O[p] === N[p]) p++;
+  let q = 0; while (q < oLen - p && q < N.length - p && O[oLen - 1 - q] === N[N.length - 1 - q]) q++;
+  if (p === oLen && p === N.length) return { status: 'unchanged' };
+  let s = p, e = oLen - q, rep = N.slice(p, N.length - q).join('');
+  // luôn thay ít nhất một ký tự gốc để có mẫu kiểu chữ và vị trí (trường hợp chỉ chèn thêm chữ)
+  if (s === e) { if (s > 0) { s -= 1; rep = O[s] + rep; } else { e += 1; rep = rep + O[0]; } }
+  return editRange(doc, page, lines, line, s, e, rep, opts);
+}
+
+/** Lõi: thay các ký tự [s, e) của `line` bằng `replace`. */
+function editRange(doc, page, lines, line, s, e, replace, opts) {
   const needed = new Set(line.chars.map((c) => c.key));
   const styles = analyzePage(page, lines, opts, needed);
 
