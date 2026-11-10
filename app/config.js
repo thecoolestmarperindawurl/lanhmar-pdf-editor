@@ -3,7 +3,7 @@
 export const CONFIG = {
   // OAuth client loại "Web application" trong project 313294325944, Authorized JavaScript origins:
   //   https://thecoolestmarperindawurl.github.io  và  https://pdf.lanhmar.id.vn
-  GOOGLE_CLIENT_ID: '',
+  GOOGLE_CLIENT_ID: '313294325944-epjetulpjk7nsgnebcvi5o5o2kjocqph.apps.googleusercontent.com',
   // API key của Google Picker (đã có), cần thêm referrer cho 2 origin ở trên.
   PICKER_API_KEY: 'AIzaSyAldsyFuxYINXtz2i1jPnB_NaQ4qVh07_c',
   GOOGLE_APP_ID: '313294325944',
