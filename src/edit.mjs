@@ -264,13 +264,52 @@ export function analyzePage(page, lines, opts, needed) {
   return styles;
 }
 
+/** Nét ngang mỏng trên trang (gạch chân, gạch ngang, nét viền mỏng): { bbox, color, kind: 'fill'|'stroke' }. */
+function thinRules(page) {
+  const out = [];
+  const bounds = (path, ctm) => {
+    const xs = [], ys = [];
+    const add = (x, y) => { xs.push(ctm[0] * x + ctm[2] * y + ctm[4]); ys.push(ctm[1] * x + ctm[3] * y + ctm[5]); };
+    path.walk({ moveTo: add, lineTo: add, curveTo: (a, b, c, d, e, f) => { add(a, b); add(c, d); add(e, f); }, closePath() {} });
+    return xs.length ? [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] : null;
+  };
+  const keep = (b, color, kind, lw = 0) => {
+    if (!b) return;
+    const h = b[3] - b[1] + lw, w = b[2] - b[0];
+    if (w > 3 && h > 0 && h < 2.5 && w > 4 * h) out.push({ bbox: [b[0], b[1] - lw / 2, b[2], b[3] + lw / 2], color: color.slice(), kind });
+  };
+  const dev = new mupdf.Device({
+    fillPath(path, eo, ctm, cs, color) { keep(bounds(path, ctm), color, 'fill'); },
+    strokePath(path, st, ctm, cs, color) { let lw = 1; try { lw = st.getLineWidth ? st.getLineWidth() * Math.hypot(ctm[0], ctm[1]) : 1; } catch { /* mặc định */ } keep(bounds(path, ctm), color, 'stroke', lw); },
+  });
+  page.run(dev, mupdf.Matrix.identity); dev.close();
+  return out;
+}
+
+/** Gạch chân / gạch ngang thuộc dòng: nét mỏng chạy dọc phần chữ, ngay dưới chân chữ hoặc xuyên giữa thân chữ. */
+function decorationsOf(page, line, fromX, toX) {
+  const c = line.chars.find((x) => !/\s/.test(x.c)) || line.chars[0];
+  const base = c.origin[1], size = c.size;
+  const textX0 = Math.min(...line.chars.map((x) => x.quad[0])), textX1 = Math.max(...line.chars.map((x) => x.quad[2]));
+  return thinRules(page).filter((r) => {
+    const [x0, y0, x1, y1] = r.bbox, mid = (y0 + y1) / 2;
+    const under = mid > base - 0.05 * size && mid < base + 0.35 * size && y0 < line.bbox[3] + 0.2 * size;
+    const strike = mid > base - 0.45 * size && mid < base - 0.15 * size;
+    if (!under && !strike) return false;
+    if (x0 < textX0 - 3 || x1 > textX1 + 3) return false; // dài hơn chữ: viền bảng, đường kẻ chia mục
+    return x1 > fromX + 1 && x0 < toX; // chạm phần được viết lại
+  }).map((r) => ({ ...r, type: (r.bbox[1] + r.bbox[3]) / 2 > base - 0.05 * size ? 'underline' : 'strike' }));
+}
+
 /** Kiểu căn của dòng: 'center' | 'right' | 'left'. Dòng bắt đầu ở mép trái dùng chung với ≥2 dòng khác coi là căn trái
  *  (kể cả căn đều); còn lại xét tâm dòng so với tâm vùng nội dung, và mép phải so với lề phải. */
-function alignmentOf(lines, line) {
+function alignmentOf(lines, line, pageWidth) {
   const others = lines.filter((l) => l !== line && Math.abs(l.bbox[3] - l.bbox[1] - (line.bbox[3] - line.bbox[1])) < 20);
   const sharedLeft = others.filter((l) => Math.abs(l.bbox[0] - line.bbox[0]) < 1.5).length;
   if (sharedLeft >= 2) return 'left';
-  const left = Math.min(...lines.map((l) => l.bbox[0])), right = Math.max(...lines.map((l) => l.bbox[2]));
+  const left = Math.min(...lines.map((l) => l.bbox[0]));
+  // lề phải: mép phải xa nhất của chữ, hoặc lề đối xứng với lề trái khi các dòng không chạy tới lề phải (căn trái, không căn đều)
+  const right = Math.max(...lines.map((l) => l.bbox[2]), pageWidth ? pageWidth - left : 0);
   if (line.bbox[0] - left < 2) return 'left'; // chạm lề trái: dòng thường hoặc căn đều
   const center = (line.bbox[0] + line.bbox[2]) / 2;
   if (Math.abs(center - (left + right) / 2) < 3) return 'center';
@@ -360,22 +399,74 @@ export function editLine(doc, pageIndex, lineIndex, newText, opts) {
   return editRange(doc, page, lines, line, s, e, rep, opts);
 }
 
-/** Lõi: thay các ký tự [s, e) của `line` bằng `replace`. */
+/** Các dòng tiếp theo cùng đoạn với `line`: cùng cỡ chữ, cùng lề trái (cho phép dòng đầu thụt vào),
+ *  khoảng cách dòng đều (±12%), cùng cột. Đoạn kết thúc ở khoảng cách lớn hơn, thụt lề khác, hoặc đổi cỡ chữ. */
+function paragraphAfter(lines, line) {
+  const base = (l) => (l.chars.find((c) => !/\s/.test(c.c)) || l.chars[0]).origin[1];
+  const left = (l) => (l.chars.find((c) => !/\s/.test(c.c)) || l.chars[0]).origin[0];
+  const sizeOf = (l) => (l.chars.find((c) => !/\s/.test(c.c)) || l.chars[0]).size;
+  const size = sizeOf(line);
+  const below = lines.filter((l) => l !== line && base(l) > base(line) + size * 0.5 && l.bbox[0] < line.bbox[2] && l.bbox[2] > line.bbox[0])
+    .sort((a, b) => base(a) - base(b));
+  const out = []; let prev = line, d0 = null, x0 = null;
+  for (const l of below) {
+    if (Math.abs(sizeOf(l) - size) > 0.6) break;
+    const d = base(l) - base(prev);
+    if (d0 == null) { if (d < size * 0.95 || d > size * 1.8) break; d0 = d; } else if (Math.abs(d - d0) > d0 * 0.12) break;
+    const lx = left(l);
+    if (x0 == null) { if (lx > left(line) + 2 || lx < left(line) - 40) break; x0 = lx; } else if (Math.abs(lx - x0) > 2) break;
+    out.push(l); prev = l;
+  }
+  return { lines: out, spacing: d0 };
+}
+
+/** Các dòng phía trên cùng đoạn với `line` (đi ngược lên, cùng cỡ, cùng lề trái, khoảng dòng đều). */
+function paragraphBefore(lines, line, spacingHint) {
+  const base = (l) => (l.chars.find((c) => !/\s/.test(c.c)) || l.chars[0]).origin[1];
+  const left = (l) => (l.chars.find((c) => !/\s/.test(c.c)) || l.chars[0]).origin[0];
+  const sizeOf = (l) => (l.chars.find((c) => !/\s/.test(c.c)) || l.chars[0]).size;
+  const size = sizeOf(line);
+  const above = lines.filter((l) => l !== line && base(l) < base(line) - size * 0.5 && l.bbox[0] < line.bbox[2] && l.bbox[2] > line.bbox[0])
+    .sort((a, b) => base(b) - base(a));
+  const out = []; let prev = line, d0 = spacingHint || null;
+  for (const l of above) {
+    if (Math.abs(sizeOf(l) - size) > 0.6) break;
+    const d = base(prev) - base(l);
+    if (d0 == null) { if (d < size * 0.95 || d > size * 1.8) break; d0 = d; } else if (Math.abs(d - d0) > d0 * 0.12) break;
+    if (Math.abs(left(l) - left(line)) > 2 && out.length) break; // dòng đầu đoạn có thể thụt vào: nhận rồi dừng
+    out.push(l); prev = l;
+    if (Math.abs(left(l) - left(line)) > 2) break;
+  }
+  return out;
+}
+
+/** Lõi: thay các ký tự [s, e) của `line` bằng `replace`. Nếu dòng thuộc một đoạn căn trái và chữ mới không vừa
+ *  (hoặc ngắn đi trong đoạn căn đều), dàn lại phần còn lại của đoạn: đẩy từ xuống / kéo từ lên các dòng có sẵn,
+ *  thêm tối đa một dòng nếu ngay dưới đoạn còn trống; không được thì quay về cách co ngang một dòng. */
 function editRange(doc, page, lines, line, s, e, replace, opts) {
-  const needed = new Set(line.chars.map((c) => c.key));
+  const pb = page.getBounds();
+  const align = alignmentOf(lines, line, pb[2] - pb[0]);
+  const para = align === 'left' ? paragraphAfter(lines, line) : { lines: [], spacing: null };
+  const needed = new Set([line, ...para.lines].flatMap((l) => l.chars.map((c) => c.key)));
   const styles = analyzePage(page, lines, opts, needed);
 
   // Dòng căn giữa/căn phải: viết lại CẢ dòng để đặt lại vị trí theo kiểu căn.
-  const align = alignmentOf(lines, line);
-  const start = align === 'left' ? s : 0;
-  const seq = line.chars.slice(start, s).map((c) => ({ ch: c.c, src: c })).concat(buildSequence(line.chars.slice(s, e), replace, line.chars.slice(e)));
-  const editChars = line.chars.slice(start);
+  const start = align === 'left' && !opts._full ? s : 0;
+  const lineSeq = line.chars.slice(start, s).map((c) => ({ ch: c.c, src: c })).concat(buildSequence(line.chars.slice(s, e), replace, line.chars.slice(e)));
   const first = line.chars[start];
+  const editChars = line.chars.slice(start);
   const oldRight = Math.max(...editChars.map((c) => Math.max(c.quad[2], c.quad[6])));
+  // chuỗi kéo dài tới hết đoạn (dùng khi dàn lại), nối các dòng bằng một dấu cách
+  const paraSeq = lineSeq.slice();
+  for (const l of para.lines) {
+    const cs = l.chars.slice(); while (cs.length && /\s/.test(cs[cs.length - 1].c)) cs.pop();
+    if (paraSeq.length && !/\s/.test(paraSeq[paraSeq.length - 1].ch)) paraSeq.push({ ch: ' ', src: paraSeq[paraSeq.length - 1].src });
+    for (const c of cs) paraSeq.push({ ch: c.c, src: c });
+  }
 
   // --- phông cho từng kiểu: dùng lại phông gốc (có tên, đủ ký tự) hoặc phông dự phòng đã nhận dạng ---
   const perKey = new Map();
-  for (const it of seq) { const k = it.src.key; if (!perKey.has(k)) perKey.set(k, ''); perKey.set(k, perKey.get(k) + it.ch); }
+  for (const it of paraSeq) { const k = it.src.key; if (!perKey.has(k)) perKey.set(k, ''); perKey.set(k, perKey.get(k) + it.ch); }
   const choice = new Map();
   for (const [k, text] of perKey) {
     const st = styles.get(k);
@@ -385,39 +476,73 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
     const strategy = st.kind === 'same' ? 'B-same-family' : st.kind === 'matched' ? 'C-matched' : st.kind === 'borrowed' ? 'C-borrowed' : 'C-generic';
     choice.set(k, { font: f, strategy, label: st.file.replace(/\.(ttf|otf)$/, ''), match: st.match });
   }
+  const glyph = (it) => { const ch = choice.get(it.src.key); const g = gid(ch.font, it.ch); return { ch, g, w: ch.font.advanceGlyph(g, 0) * it.src.size }; };
+  const widthOf = (items) => items.reduce((t, it) => t + glyph(it).w, 0);
 
-  // --- gom thành các đoạn cùng phông/cỡ/màu, đo độ rộng ---
-  const runs = [];
-  for (const it of seq) {
-    const ch = choice.get(it.src.key), col = colorOp(it.src.color), size = +it.src.size.toFixed(3);
-    const g = gid(ch.font, it.ch);
-    const last = runs[runs.length - 1];
-    if (last && last.font === ch.font && last.size === size && last.col === col) { last.gids.push(g); last.chars.push(it.ch); }
-    else runs.push({ font: ch.font, size, col, gids: [g], chars: [it.ch], strategy: ch.strategy, label: ch.label });
-  }
-  let width = 0;
-  for (const r of runs) { r.width = r.gids.reduce((w, g) => w + r.font.advanceGlyph(g, 0), 0) * r.size; width += r.width; }
+  // --- đo một dòng ---
+  const width = widthOf(lineSeq);
   let x = first.origin[0];
   const oldLeft = x, oldEnd = oldRight;
-  let avail = rightLimit(lines, line, x) - x;
+  const R = rightLimit(lines, line, x);
+  let avail = R - x;
   if (align === 'center') avail = Math.max(avail, oldEnd - oldLeft + 2 * Math.min(oldLeft - Math.min(...lines.map((l) => l.bbox[0])), Math.max(...lines.map((l) => l.bbox[2])) - oldEnd));
   if (align === 'right') avail = oldEnd - Math.min(...lines.map((l) => l.bbox[0]));
+
+  // --- gạch chân / gạch ngang của phần được viết lại (tìm trước khi xoá chữ) ---
+  const decos = decorationsOf(page, line, oldLeft, oldEnd);
+
+  // --- kế hoạch dàn lại đoạn ---
+  let plan = null;
+  if (align === 'left' && !decos.length) plan = planReflow({ lines, line, para, paraSeq, lineSeq, x, R, width, avail, pb, glyph, widthOf });
+  // đoạn căn đều cần dàn lại: viết lại cả dòng từ đầu để khoảng cách từ đều nhau (chưa đụng gì vào trang nên làm lại được)
+  if (plan && plan.justified && start > 0) return editRange(doc, page, lines, line, s, e, replace, { ...opts, _full: true });
+
   let tz = 100, overflow = false;
-  if (width > avail) { tz = Math.floor((avail / width) * 100); if (tz < 85) { overflow = true; tz = 85; } }
+  if (!plan && width > avail) { tz = Math.floor((avail / width) * 100); if (tz < 85) { overflow = true; tz = 85; } }
   const shown = width * tz / 100;
   if (align === 'center') x = (oldLeft + oldEnd) / 2 - shown / 2;
   if (align === 'right') x = oldEnd - shown;
+  const newEnd = x + shown;
+  const mapDeco = (d) => {
+    let [ux0, uy0, ux1, uy1] = d.bbox;
+    if (align !== 'left') { ux0 = x + (ux0 - oldLeft); ux1 = newEnd - (oldEnd - ux1); }
+    else { ux1 = ux1 >= oldEnd - 3 ? newEnd - (oldEnd - ux1) : ux1 + (newEnd - oldEnd); }
+    return [ux0, uy0, Math.max(ux0 + 1, ux1), uy1];
+  };
 
-  // --- xoá thật chữ cũ (cụm + đuôi dòng) ---
+  // --- xoá thật chữ cũ: cụm + đuôi dòng (+ các dòng sau của đoạn khi dàn lại) ---
+  const killChars = plan ? editChars.concat(...para.lines.map((l) => l.chars)) : editChars;
   const annot = page.createAnnotation('Redact');
-  annot.setQuadPoints(editChars.map((c) => shrinkQuad(c.quad)));
+  annot.setQuadPoints(killChars.map((c) => shrinkQuad(c.quad)));
   page.applyRedactions(false, mupdf.PDFPage.REDACT_IMAGE_NONE, mupdf.PDFPage.REDACT_LINE_ART_NONE, mupdf.PDFPage.REDACT_TEXT_REMOVE);
+  // xoá nét trang trí cũ: lượt redaction riêng chỉ bỏ nét vẽ nằm gọn trong ô, không đụng chữ
+  let decoDone = [];
+  if (decos.length) {
+    const before = thinRules(page).length;
+    for (const d of decos) { const a2 = page.createAnnotation('Redact'); a2.setRect([d.bbox[0] - 0.4, d.bbox[1] - 0.4, d.bbox[2] + 0.4, d.bbox[3] + 0.4]); }
+    page.applyRedactions(false, mupdf.PDFPage.REDACT_IMAGE_NONE, mupdf.PDFPage.REDACT_LINE_ART_REMOVE_IF_COVERED, mupdf.PDFPage.REDACT_TEXT_NONE);
+    const removed = before - thinRules(page).length;
+    if (removed >= decos.length) decoDone = decos; // chỉ vẽ lại khi chắc chắn nét cũ đã mất (tránh gạch đôi)
+  }
+
+  // --- các "mảnh" cần vẽ: [{ x, y, items }] (một mảnh = một từ khi dàn lại, cả dòng khi không) ---
+  const pieces = plan ? plan.pieces : [{ x, y: first.origin[1], items: lineSeq }];
+
+  // --- gom thành các đoạn cùng phông/cỡ/màu ---
+  const allRuns = [];
+  for (const pc of pieces) {
+    pc.runs = [];
+    for (const it of pc.items) {
+      const { ch, g } = glyph(it); const col = colorOp(it.src.color), size = +it.src.size.toFixed(3);
+      const last = pc.runs[pc.runs.length - 1];
+      if (last && last.font === ch.font && last.size === size && last.col === col) { last.gids.push(g); last.chars.push(it.ch); }
+      else { const r = { font: ch.font, size, col, gids: [g], chars: [it.ch], strategy: ch.strategy, label: ch.label }; pc.runs.push(r); allRuns.push(r); }
+    }
+  }
 
   // --- vẽ chữ mới ---
   const inv = mupdf.Matrix.invert(page.getTransform());
   const lin = mupdf.Matrix.concat([1, 0, 0, -1, 0, 0], inv);
-  const [px, py] = PT(inv, [x, first.origin[1]]);
-  const Tm = [lin[0], lin[1], lin[2], lin[3], px, py].map((v) => +v.toFixed(4));
   const pageObj = page.getObject();
   let res = pageObj.get('Resources');
   if (!res || res.isNull()) { res = doc.newDictionary(); pageObj.put('Resources', res); }
@@ -426,19 +551,30 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
   if (!fonts || fonts.isNull()) { fonts = doc.newDictionary(); res.put('Font', fonts); }
   fonts = fonts.resolve();
   const keys = new Map(); let n = 1;
-  for (const r of runs) {
+  for (const r of allRuns) {
     if (keys.has(r.font)) continue;
     while (!fonts.get('LMEd' + n).isNull()) n++;
     const fo = doc.addFont(r.font);
     // Tự ghi ToUnicode theo đúng chữ người dùng gõ: bảng cmap của phông nhúng gốc có thể ánh xạ dấu cách thành U+00A0
     // (gặp ở PDF của Word và Canva), làm tìm kiếm/copy sai dù nhìn đúng.
     const map = new Map();
-    for (const rr of runs) if (rr.font === r.font) rr.gids.forEach((g, i) => { if (!map.has(g)) map.set(g, rr.chars[i]); });
+    for (const rr of allRuns) if (rr.font === r.font) rr.gids.forEach((g, i) => { if (!map.has(g)) map.set(g, rr.chars[i]); });
     fo.resolve().put('ToUnicode', doc.addStream(toUnicodeCMap(map), {}));
     fonts.put('LMEd' + n, fo); keys.set(r.font, 'LMEd' + n); n++;
   }
-  let content = `q\nBT\n${tz !== 100 ? tz + ' Tz\n' : ''}${Tm.join(' ')} Tm\n`;
-  for (const r of runs) content += `${r.col}\n/${keys.get(r.font)} ${r.size} Tf\n<${r.gids.map((g) => g.toString(16).padStart(4, '0')).join('')}> Tj\n`;
+  let content = '';
+  for (const d of decoDone) {
+    const [ux0, uy0, ux1, uy1] = mapDeco(d);
+    const a3 = PT(inv, [ux0, uy0]), b3 = PT(inv, [ux1, uy1]);
+    const rx = Math.min(a3[0], b3[0]), ry = Math.min(a3[1], b3[1]), rw = Math.abs(b3[0] - a3[0]), rh = Math.abs(b3[1] - a3[1]);
+    content += `q\n${colorOp(d.color)}\n${[rx, ry, rw, rh].map((v) => +v.toFixed(3)).join(' ')} re f\nQ\n`;
+  }
+  content += `q\nBT\n${tz !== 100 ? tz + ' Tz\n' : ''}`;
+  for (const pc of pieces) {
+    const [px, py] = PT(inv, [pc.x, pc.y]);
+    content += `${[lin[0], lin[1], lin[2], lin[3], px, py].map((v) => +v.toFixed(4)).join(' ')} Tm\n`;
+    for (const r of pc.runs) content += `${r.col}\n/${keys.get(r.font)} ${r.size} Tf\n<${r.gids.map((g) => g.toString(16).padStart(4, '0')).join('')}> Tj\n`;
+  }
   content += 'ET\nQ\n';
   const old = pageObj.get('Contents');
   const arr = doc.newArray();
@@ -448,15 +584,107 @@ function editRange(doc, page, lines, line, s, e, replace, opts) {
   arr.push(doc.addStream(content, {}));
   pageObj.put('Contents', arr);
 
-  const used = [...new Map(runs.map((r) => [r.label, r.strategy])).entries()];
+  const used = [...new Map(allRuns.map((r) => [r.label, r.strategy])).entries()];
   const rank = { 'C-generic': 4, 'C-borrowed': 3, 'C-matched': 2, 'B-same-family': 1, 'A-original': 0 };
   const worst = used.reduce((w, [, st]) => (rank[st] > rank[w] ? st : w), 'A-original');
   const m = [...choice.values()].find((c) => c.match);
+  const touched = plan ? [line, ...para.lines] : [line];
+  const region = [
+    Math.min(x, oldLeft, ...touched.map((l) => l.bbox[0]), ...decos.map((d) => d.bbox[0])),
+    Math.min(...touched.map((l) => l.bbox[1]), ...decos.map((d) => d.bbox[1])),
+    Math.max(oldRight, newEnd, ...(plan ? [R] : []), ...touched.map((l) => l.bbox[2]), ...decos.map((d) => d.bbox[2])),
+    Math.max(...touched.map((l) => l.bbox[3]), ...decos.map((d) => d.bbox[3]), ...(plan && plan.added ? [plan.addedBottom] : [])),
+  ];
   return {
     status: 'ok', strategy: worst, fonts: used.map(([l, st]) => `${l} (${st})`), fontName: baseName(first.font),
-    fallback: used.map(([l]) => l).join(' + '), match: m ? m.match : null, runs: runs.length,
+    fallback: used.map(([l]) => l).join(' + '), match: m ? m.match : null, runs: allRuns.length,
     size: +first.size.toFixed(2), width: +width.toFixed(1), oldWidth: +(oldRight - oldLeft).toFixed(1), avail: +avail.toFixed(1), tz, overflow,
-    align, region: [Math.min(x, oldLeft), line.bbox[1], Math.max(oldRight, x + width * tz / 100), line.bbox[3]], lineBox: line.bbox,
+    align, region, lineBox: line.bbox,
     centerShift: +(((x + shown / 2) - (oldLeft + oldEnd) / 2)).toFixed(1), rightShift: +((x + shown) - oldEnd).toFixed(1),
+    decorations: decos.length ? { found: decos.map((d) => d.type), redrawn: decoDone.length } : null,
+    reflow: plan ? { lines: plan.lineCount, was: 1 + para.lines.length, added: plan.added, justified: plan.justified } : null,
   };
+}
+
+/** Lập kế hoạch dàn lại đoạn. Trả về null nếu không cần (ngắt dòng như cũ và vừa chỗ) hoặc không làm được. */
+function planReflow({ lines, line, para, paraSeq, lineSeq, x, R, width, avail, pb, glyph, widthOf }) {
+  const first = line.chars.find((c) => !/\s/.test(c.c)) || line.chars[0];
+  const size = first.size;
+  // ô dòng có sẵn: dòng đang sửa (từ chỗ sửa) + các dòng sau của đoạn
+  const slots = [{ x, y: line.chars[0].origin[1], right: R }];
+  for (const l of para.lines) { const c = l.chars.find((cc) => !/\s/.test(cc.c)) || l.chars[0]; slots.push({ x: c.origin[0], y: c.origin[1], right: R }); }
+  // đoạn căn đều: mọi dòng trừ dòng cuối chạm lề phải
+  const all = [line, ...para.lines];
+  // dấu cách trong dòng gốc có bị giãn không (dấu hiệu căn đều): khoảng cách thật so với độ rộng dấu cách tự nhiên
+  const stretched = (l) => {
+    let real = 0, nat = 0;
+    for (let i = 0; i + 1 < l.chars.length; i++) {
+      const c = l.chars[i]; if (!/\s/.test(c.c)) continue;
+      const d = l.chars[i + 1].origin[0] - c.origin[0]; if (d <= 0) continue;
+      real += d; nat += glyph({ ch: ' ', src: c }).w;
+    }
+    return nat > 0 && real / nat > 1.04; // đo trên mẫu: căn trái 0,99–1,01; căn đều ≥ 1,07
+  };
+  // xét cả các dòng phía trên trong cùng đoạn (chúng không phải dòng cuối) để biết đoạn có căn đều không
+  const nonLast = paragraphBefore(lines, line, para.spacing).concat(all.slice(0, -1));
+  const justified = nonLast.length >= 1 && nonLast.every((l) => R - l.bbox[2] < 3) && (nonLast.length >= 2 || stretched(nonLast[0]));
+  const needLonger = width > avail + 0.5;
+  const shorterInJustified = justified && para.lines.length && width < avail - size * 0.6;
+  if (!needLonger && !shorterInJustified) return null;
+
+  // tách từ
+  const words = []; let cur = [];
+  for (const it of paraSeq) { if (/\s/.test(it.ch)) { if (cur.length) { words.push({ items: cur, space: it }); cur = []; } } else cur.push(it); }
+  if (cur.length) words.push({ items: cur, space: null });
+  const W = words.map((w) => ({ ...w, w: widthOf(w.items), sw: w.space ? glyph(w.space).w : size * 0.25 }));
+
+  const tryBreak = (slotList) => {
+    const out = slotList.map(() => []); let si = 0, used = 0;
+    for (const w of W) {
+      for (;;) {
+        if (si >= slotList.length) return null;
+        const room = slotList[si].right - slotList[si].x;
+        const need = (out[si].length ? out[si][out[si].length - 1].sw : 0) + w.w;
+        if (used + need <= room + 0.5) { out[si].push(w); used += need; break; }
+        if (!out[si].length) return null; // một từ dài hơn cả dòng
+        si++; used = 0;
+      }
+    }
+    return out.filter((o) => o.length);
+  };
+  let rows = tryBreak(slots), added = false, addedBottom = 0, useSlots = slots;
+  if (!rows) {
+    // thêm một dòng ngay dưới đoạn nếu chỗ đó trống
+    const last = slots[slots.length - 1];
+    const gap = para.spacing || size * 1.25;
+    const ny = last.y + gap, nx = slots.length > 1 ? last.x : (line.chars.find((c) => !/\s/.test(c.c)) || line.chars[0]).origin[0];
+    // dòng thêm phải cách nội dung bên dưới ít nhất ~nửa khoảng dòng, tránh dính sát đoạn sau
+    const box = [nx, ny - size * 0.95, R, ny + Math.max(size * 0.3, gap * 0.6)];
+    const busy = lines.some((l) => !all.includes(l) && l.bbox[0] < box[2] && l.bbox[2] > box[0] && l.bbox[1] < box[3] && l.bbox[3] > box[1]);
+    if (busy || box[3] > pb[3] - 4) return null;
+    useSlots = [...slots, { x: nx, y: ny, right: R }];
+    rows = tryBreak(useSlots);
+    if (!rows) return null;
+    added = rows.length > slots.length; addedBottom = box[3];
+  }
+  // nếu cách ngắt dòng không đổi so với hiện tại thì không cần dàn lại
+  const countWords = (items) => items.map((i) => i.ch).join('').split(/\s+/).filter(Boolean).length;
+  const orig = [countWords(lineSeq), ...para.lines.map((l) => countWords(l.chars))];
+  if (!needLonger && rows.length === orig.length && rows.every((r, i) => r.length === orig[i])) return null;
+
+  const pieces = [];
+  rows.forEach((row, ri) => {
+    const sl = useSlots[ri];
+    const lineW = row.reduce((t, w, i) => t + w.w + (i < row.length - 1 ? w.sw : 0), 0);
+    const isLast = ri === rows.length - 1;
+    let extra = 0;
+    if (justified && !isLast && row.length > 1) { extra = (sl.right - sl.x - lineW) / (row.length - 1); if (extra > size * 1.2) extra = 0; }
+    let cx = sl.x;
+    row.forEach((w, i) => {
+      const items = w.items.slice(); if (w.space && i < row.length - 1) items.push(w.space);
+      pieces.push({ x: cx, y: sl.y, items });
+      cx += w.w + (i < row.length - 1 ? w.sw + extra : 0);
+    });
+  });
+  return { pieces, lineCount: rows.length, added, addedBottom, justified };
 }
