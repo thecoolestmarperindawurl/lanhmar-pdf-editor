@@ -1,19 +1,22 @@
 // Lõi sửa chữ gốc trong PDF bằng MuPDF.js. Chạy được cả trong Node (bộ thử) lẫn trình duyệt (ứng dụng sau này).
 // Core in-place PDF text editing with MuPDF.js. Runs in Node (spike) and in the browser (future app).
 //
-// Cách làm cho một lần sửa trên MỘT dòng:
-//  1. Đọc từng ký tự của trang (structured text): vị trí gốc, phông, cỡ, màu, khung.
-//  2. Tìm cụm cần sửa trong một dòng. Phần đuôi dòng từ cụm đó trở đi được viết lại cùng chữ mới,
-//     để chữ dài/ngắn hơn không đè lên chữ phía sau.
-//  3. Xoá thật các ký tự đó bằng redaction (không vẽ ô đen, không đụng ảnh và nét vẽ).
-//  4. Chọn phông: (A) dùng lại phông nhúng gốc nếu có đủ ký tự; (B) phông "đo bằng" cùng họ
-//     (Times→Liberation Serif, Arial→Liberation Sans, Calibri→Carlito); (C) phông chung có dấu tiếng Việt.
-//  5. Nhúng phông (Type0/Identity-H, có ToUnicode) và vẽ chữ mới đúng gốc toạ độ, cỡ, màu.
-//     Nếu chữ mới rộng hơn khoảng trống, co ngang (Tz) tối đa tới 85%; quá mức đó thì báo tràn.
+// Một lần sửa trên MỘT dòng:
+//  1. Đọc từng ký tự của trang: vị trí gốc, phông, cỡ, màu, khung.
+//  2. Nhận dạng "kiểu chữ" của từng phông trên cả trang (analyzePage): phông có tên quen thuộc → phông cùng họ
+//     đo bằng; phông lạ hoặc Type3 không tên → so độ rộng ký tự đo được trên trang để chọn phông + độ đậm khớp nhất.
+//  3. Dựng lại chuỗi chữ từ chỗ sửa tới cuối dòng, giữ kiểu chữ theo từng ký tự: phần giống nhau ở đầu/cuối cụm
+//     giữ kiểu gốc, phần mới lấy kiểu của ký tự gốc mà nó thay thế, đuôi dòng giữ kiểu gốc (dòng trộn thường/đậm vẫn đúng).
+//  4. Xoá thật các ký tự cũ bằng redaction (không vẽ ô, không đụng ảnh và nét vẽ).
+//  5. Mỗi đoạn cùng phông/cỡ/màu viết bằng một lệnh Tj; dùng lại phông nhúng gốc nếu nó có đủ ký tự, nếu không
+//     dùng phông dự phòng đã nhận dạng. Chữ mới rộng hơn khoảng trống thì co ngang (Tz) tối đa 85%, quá thì báo tràn.
 import * as mupdf from 'mupdf';
 
 const NFC = (s) => String(s).normalize('NFC');
 export const PT = (m, p) => [m[0] * p[0] + m[2] * p[1] + m[4], m[1] * p[0] + m[3] * p[1] + m[5]];
+const baseName = (font) => String(font.getName() || '').replace(/^[A-Z]{6}\+/, '');
+const keyOf = (font) => String(font.getName() || '');
+const isType3 = (font) => /^Type3/.test(baseName(font));
 
 /** Đọc các dòng chữ của trang kèm thông tin từng ký tự. */
 export function readLines(page) {
@@ -22,26 +25,40 @@ export function readLines(page) {
   st.walk({
     beginTextBlock(bbox) { block = bbox; },
     beginLine(bbox) { cur = { bbox, block, chars: [] }; },
-    onChar(c, origin, font, size, quad, color) { cur.chars.push({ c, origin, font, size, quad, color }); },
+    onChar(c, origin, font, size, quad, color) { cur.chars.push({ c, origin, font, size, quad, color, key: keyOf(font) }); },
     endLine() { if (cur && cur.chars.length) { cur.text = cur.chars.map((x) => x.c).join(''); lines.push(cur); } cur = null; },
   });
   return { st, lines };
 }
-
 export const pageText = (page) => readLines(page).lines.map((l) => l.text).join('\n');
 
-const baseName = (font) => String(font.getName() || '').replace(/^[A-Z]{6}\+/, '');
+/** Toàn bộ phông dự phòng trong fonts/ (đều đủ dấu tiếng Việt). */
+export const FONT_FILES = [
+  'LiberationSerif-Regular.ttf', 'LiberationSerif-Bold.ttf', 'LiberationSerif-Italic.ttf', 'LiberationSerif-BoldItalic.ttf',
+  'LiberationSans-Regular.ttf', 'LiberationSans-Bold.ttf', 'LiberationSans-Italic.ttf', 'LiberationSans-BoldItalic.ttf',
+  'Carlito-Regular.ttf', 'Carlito-Bold.ttf', 'Carlito-Italic.ttf', 'Carlito-BoldItalic.ttf',
+  'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf', 'DejaVuSerif.ttf', 'DejaVuSerif-Bold.ttf',
+  'Inter-Regular.otf', 'Inter-Medium.otf', 'Inter-SemiBold.otf', 'Inter-Bold.otf',
+];
+const fontCache = new Map();
+function loadFallback(file, opts) {
+  if (!fontCache.has(file)) fontCache.set(file, new mupdf.Font(file.replace(/\.(ttf|otf)$/, ''), opts.loadFont(file)));
+  return fontCache.get(file);
+}
+const gid = (f, ch) => f.encodeCharacter(ch.codePointAt(0));
+const covers = (font, text) => [...text].every((ch) => /\s/.test(ch) || gid(font, ch) > 0);
 
 /** Họ phông dự phòng theo tên phông gốc. kind: 'same' (cùng họ/đo bằng) | 'generic'. */
 export function fallbackFor(font) {
   const n = baseName(font).toLowerCase();
-  const bold = font.isBold() || /bold|black|heavy|semibold|demi/.test(n);
+  const bold = font.isBold() || /bold|black|heavy/.test(n);
+  const semi = /semibold|demibold|demi/.test(n), medium = /medium/.test(n);
   const italic = font.isItalic() || /italic|oblique/.test(n);
   const sfx = bold && italic ? 'BoldItalic' : bold ? 'Bold' : italic ? 'Italic' : 'Regular';
   if (/liberationserif|times|tinos/.test(n)) return { file: `LiberationSerif-${sfx}.ttf`, kind: 'same' };
   if (/liberationsans|arial|helvetica|arimo/.test(n)) return { file: `LiberationSans-${sfx}.ttf`, kind: 'same' };
   if (/carlito|calibri/.test(n)) return { file: `Carlito-${sfx}.ttf`, kind: 'same' };
-  if (/^inter\b|inter-|interdisplay|^inter$/.test(n)) return { file: bold ? 'Inter-Bold.otf' : 'Inter-Regular.otf', kind: 'same' };
+  if (/^inter\b|^inter-|^inter$|interdisplay/.test(n)) return { file: semi ? 'Inter-SemiBold.otf' : medium ? 'Inter-Medium.otf' : bold ? 'Inter-Bold.otf' : 'Inter-Regular.otf', kind: 'same' };
   if (/dejavusans/.test(n)) return { file: bold ? 'DejaVuSans-Bold.ttf' : 'DejaVuSans.ttf', kind: 'same' };
   if (/dejavuserif/.test(n)) return { file: bold ? 'DejaVuSerif-Bold.ttf' : 'DejaVuSerif.ttf', kind: 'same' };
   // Cambria/Caladea: Caladea thiếu dấu tiếng Việt nên dùng Liberation Serif.
@@ -49,57 +66,157 @@ export function fallbackFor(font) {
   return { file: serif ? `LiberationSerif-${sfx}.ttf` : `LiberationSans-${sfx}.ttf`, kind: 'generic' };
 }
 
-/** Toàn bộ phông dự phòng có trong thư mục fonts/ (đều đủ dấu tiếng Việt). */
-export const FONT_FILES = [
-  'LiberationSerif-Regular.ttf', 'LiberationSerif-Bold.ttf', 'LiberationSerif-Italic.ttf', 'LiberationSerif-BoldItalic.ttf',
-  'LiberationSans-Regular.ttf', 'LiberationSans-Bold.ttf', 'LiberationSans-Italic.ttf', 'LiberationSans-BoldItalic.ttf',
-  'Carlito-Regular.ttf', 'Carlito-Bold.ttf', 'Carlito-Italic.ttf', 'Carlito-BoldItalic.ttf',
-  'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf', 'DejaVuSerif.ttf', 'DejaVuSerif-Bold.ttf',
-  'Inter-Regular.otf', 'Inter-Bold.otf',
-];
-const fontCache = new Map();
-function loadFallback(file, opts) {
-  if (!fontCache.has(file)) fontCache.set(file, new mupdf.Font(file.replace(/\.(ttf|otf)$/, ''), opts.loadFont(file)));
-  return fontCache.get(file);
-}
-
-/** Cặp ký tự liền nhau trong cùng từ, cùng phông với `font`: khoảng cách gốc-tới-gốc thật trên trang = độ rộng ký tự đầu.
- *  Không tính dấu cách (căn đều hai bên làm giãn dấu cách). */
-function advancePairs(line, font) {
-  // Chromium chia một phông thành nhiều phông Type3 (mỗi cái giữ vài ký tự) nên với Type3 gom mọi ký tự Type3 cùng cỡ.
-  const t3 = /^Type3/.test(baseName(font));
-  const same = (f) => f === font || baseName(f) === baseName(font) || (t3 && /^Type3/.test(baseName(f)));
-  const out = [];
-  for (let i = 0; i + 1 < line.chars.length; i++) {
-    const a = line.chars[i], b = line.chars[i + 1];
-    if (!same(a.font)) continue;
+/** Cặp ký tự liền nhau trong cùng từ: khoảng cách gốc-tới-gốc thật = độ rộng ký tự đầu (không tính dấu cách vì căn đều làm giãn). */
+function pairsOf(lines) {
+  const by = new Map();
+  for (const l of lines) for (let i = 0; i + 1 < l.chars.length; i++) {
+    const a = l.chars[i], b = l.chars[i + 1];
     if (/\s/.test(a.c) || /\s/.test(b.c) || Math.abs(b.size - a.size) > 0.01) continue;
     const d = b.origin[0] - a.origin[0];
-    if (d > 0) out.push({ ch: a.c, d, size: a.size });
+    if (d <= 0) continue;
+    if (!by.has(a.key)) by.set(a.key, []);
+    by.get(a.key).push({ ch: a.c, d, size: a.size });
   }
-  return out;
+  return by;
 }
-/** Chọn phông dự phòng có độ rộng ký tự khớp nhất với chữ gốc. Trả về { file, err } (err = sai số tương đối của tổng độ rộng). */
-function matchByWidth(pairs, text, opts) {
-  let best = null;
-  const actual = pairs.reduce((t, p) => t + p.d, 0);
-  for (const file of FONT_FILES) {
-    const f = loadFallback(file, opts);
-    if (!covers(f, text) || !pairs.every((p) => f.encodeCharacter(p.ch.codePointAt(0)) > 0)) continue;
-    const pred = pairs.reduce((t, p) => t + f.advanceGlyph(f.encodeCharacter(p.ch.codePointAt(0)), 0) * p.size, 0);
-    // sai số theo từng ký tự (bắt được khác biệt dáng chữ), cộng sai số tổng (bắt được khác biệt độ đậm)
-    const perChar = pairs.reduce((t, p) => t + Math.abs(f.advanceGlyph(f.encodeCharacter(p.ch.codePointAt(0)), 0) * p.size - p.d) / p.d, 0) / pairs.length;
-    const err = Math.abs(pred - actual) / actual;
-    const score = err + perChar;
-    if (!best || score < best.score) best = { file, err, perChar, score };
-  }
-  return best;
+/** Họ phông dự phòng và các độ đậm (chữ đứng) của từng họ. */
+const FAMILIES = {
+  Inter: ['Inter-Regular.otf', 'Inter-Medium.otf', 'Inter-SemiBold.otf', 'Inter-Bold.otf'],
+  LiberationSans: ['LiberationSans-Regular.ttf', 'LiberationSans-Bold.ttf'],
+  LiberationSerif: ['LiberationSerif-Regular.ttf', 'LiberationSerif-Bold.ttf'],
+  Carlito: ['Carlito-Regular.ttf', 'Carlito-Bold.ttf'],
+  DejaVuSans: ['DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'],
+  DejaVuSerif: ['DejaVuSerif.ttf', 'DejaVuSerif-Bold.ttf'],
+};
+/** Sai số độ rộng của một phông so với các cặp đo được (càng nhỏ càng khớp). */
+function widthScore(pairs, file, opts) {
+  const f = loadFallback(file, opts);
+  const ok = pairs.filter((p) => gid(f, p.ch) > 0);
+  if (!ok.length || ok.length < pairs.length * 0.9) return null;
+  const pred = ok.reduce((t, p) => t + f.advanceGlyph(gid(f, p.ch), 0) * p.size, 0);
+  const act = ok.reduce((t, p) => t + p.d, 0);
+  const perChar = ok.reduce((t, p) => t + Math.abs(f.advanceGlyph(gid(f, p.ch), 0) * p.size - p.d) / p.d, 0) / ok.length;
+  const err = Math.abs(pred - act) / act;
+  return { file, err, perChar, score: err + perChar, n: ok.length };
 }
 
-const covers = (font, text) => [...text].every((ch) => ch === ' ' || font.encodeCharacter(ch.codePointAt(0)) > 0);
+// ---- so "lượng mực": vẽ lại đúng các ký tự gốc bằng phông ứng viên tại đúng vị trí, so điểm ảnh tối ----
+const INK_SCALE = 2;
+function grayRender(page) {
+  const pm = page.toPixmap([INK_SCALE, 0, 0, INK_SCALE, 0, 0], mupdf.ColorSpace.DeviceGray, false, true);
+  return { px: pm.getPixels().slice(), w: pm.getWidth(), h: pm.getHeight(), x: pm.getX(), y: pm.getY(), stride: pm.getStride() };
+}
+const lum = (c) => (!c || !c.length ? 0 : c.length === 1 ? c[0] : c.length === 4 ? (1 - c[3]) * (1 - (c[0] + c[1] + c[2]) / 3) : 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]);
+function inkOf(r, chars, textLum) {
+  let total = 0;
+  for (const c of chars) {
+    const xs = [c.quad[0], c.quad[2], c.quad[4], c.quad[6]], ys = [c.quad[1], c.quad[3], c.quad[5], c.quad[7]];
+    const x0 = Math.max(r.x, Math.floor(Math.min(...xs) * INK_SCALE) - 1), x1 = Math.min(r.x + r.w, Math.ceil(Math.max(...xs) * INK_SCALE) + 1);
+    const y0 = Math.max(r.y, Math.floor(Math.min(...ys) * INK_SCALE) - 1), y1 = Math.min(r.y + r.h, Math.ceil(Math.max(...ys) * INK_SCALE) + 1);
+    // nền = điểm ảnh khác màu chữ nhất trong ô (chữ tối trên nền sáng hoặc chữ sáng trên nền tối đều đúng)
+    let mn = 255, mx = 0; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const v = r.px[(y - r.y) * r.stride + (x - r.x)]; if (v < mn) mn = v; if (v > mx) mx = v; }
+    const t = (textLum ?? lum(c.color)) * 255, bg = Math.abs(mx - t) >= Math.abs(mn - t) ? mx : mn, span = bg - t;
+    if (Math.abs(span) < 30) continue;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) total += Math.min(1, Math.max(0, (bg - r.px[(y - r.y) * r.stride + (x - r.x)]) / span));
+  }
+  return total;
+}
+function inkWith(file, chars, bounds, opts) {
+  const f = loadFallback(file, opts);
+  const tmp = new mupdf.PDFDocument();
+  const fd = tmp.newDictionary(); fd.put('F', tmp.addFont(f));
+  const res = tmp.newDictionary(); res.put('Font', fd);
+  const H = bounds[3] - bounds[1];
+  let content = '';
+  for (const c of chars) {
+    const g = gid(f, c.c); if (!g) return null;
+    content += `BT /F ${+c.size.toFixed(3)} Tf 1 0 0 1 ${(c.origin[0] - bounds[0]).toFixed(3)} ${(H - (c.origin[1] - bounds[1])).toFixed(3)} Tm <${g.toString(16).padStart(4, '0')}> Tj ET\n`;
+  }
+  tmp.insertPage(-1, tmp.addPage([0, 0, bounds[2] - bounds[0], H], 0, res, content));
+  const r = grayRender(tmp.loadPage(0));
+  const shifted = chars.map((c) => ({ ...c, quad: c.quad.map((v, i) => v - (i % 2 ? bounds[1] : bounds[0])) }));
+  return inkOf(r, shifted, 0);
+}
 
-/** Biên phải khả dụng cho chữ bắt đầu ở x trên dòng `line`: tới chữ gần nhất phía bên phải (cột kế bên, ô bảng kế bên)
- *  trong dải ±3 dòng theo chiều dọc; không có thì tới lề phải của nội dung trang. */
+/**
+ * Nhận dạng kiểu chữ cho các phông trên trang. Trả về Map(key → { orig, file, kind, match, ink }).
+ *  - Phông có tên quen thuộc (Times, Arial, Calibri, Inter…) → phông cùng họ đo bằng (kind 'same').
+ *  - Phông lạ / Type3 không tên: chốt MỘT họ cho cả trang bằng độ rộng ký tự gộp từ mọi phông lạ,
+ *    rồi chọn độ đậm cho từng phông bằng lượng mực (kind 'matched'); phông quá ít ký tự mượn độ đậm của ký tự kề (kind 'borrowed').
+ */
+export function analyzePage(page, lines, opts, needed) {
+  const fonts = new Map(), charsBy = new Map();
+  for (const l of lines) for (const c of l.chars) {
+    if (!fonts.has(c.key)) fonts.set(c.key, c.font);
+    if (!/\s/.test(c.c)) { if (!charsBy.has(c.key)) charsBy.set(c.key, []); charsBy.get(c.key).push(c); }
+  }
+  const pairs = pairsOf(lines);
+  const styles = new Map(), unknown = [];
+  for (const [key, font] of fonts) {
+    const fb = isType3(font) ? { kind: 'generic' } : fallbackFor(font);
+    if (fb.kind === 'same') styles.set(key, { orig: font, file: fb.file, kind: 'same' });
+    else unknown.push(key);
+  }
+  if (!unknown.length) return styles;
+
+  // 1) họ phông chung cho cả trang
+  let family = null, famScore = Infinity, famDetail = null;
+  for (const [fam, files] of Object.entries(FAMILIES)) {
+    let sum = 0, n = 0, pc = 0;
+    for (const k of unknown) {
+      const p = pairs.get(k); if (!p || p.length < 3) continue;
+      const best = files.map((f) => widthScore(p, f, opts)).filter(Boolean).sort((a, b) => a.score - b.score)[0];
+      if (!best) continue;
+      sum += best.score * p.length; pc += best.perChar * p.length; n += p.length;
+    }
+    if (n && sum / n < famScore) { famScore = sum / n; family = fam; famDetail = { perChar: +(pc / n * 100).toFixed(1), n }; }
+  }
+  if (!family) family = 'LiberationSans';
+  const weights = FAMILIES[family];
+
+  // 2) độ đậm cho từng phông cần dùng, theo lượng mực
+  let gray = null;
+  const bounds = page.getBounds();
+  const decide = (key) => {
+    if (styles.has(key)) return styles.get(key);
+    const chars = (charsBy.get(key) || []).slice(0, 40);
+    if (chars.length >= 4) {
+      gray = gray || grayRender(page);
+      const orig = inkOf(gray, chars);
+      let best = null;
+      for (const f of weights) {
+        const cand = inkWith(f, chars, bounds, opts); if (cand == null) continue;
+        const err = Math.abs(cand - orig) / Math.max(1, orig);
+        if (!best || err < best.err) best = { file: f, err };
+      }
+      if (best) { const st = { orig: fonts.get(key), file: best.file, kind: 'matched', match: { family, perChar: famDetail && famDetail.perChar, ink: +(best.err * 100).toFixed(1) } }; styles.set(key, st); return st; }
+    }
+    return null;
+  };
+  for (const key of unknown) {
+    if (needed && !needed.has(key)) continue;
+    if (decide(key)) continue;
+    // mượn độ đậm của ký tự gần nhất bên trái/phải trên cùng dòng (bỏ qua dấu cách), cùng cỡ, có đủ mẫu để đo
+    const votes = new Map();
+    for (const l of lines) l.chars.forEach((c, i) => {
+      if (c.key !== key || /\s/.test(c.c)) return;
+      for (const dir of [-1, 1]) {
+        for (let j = i + dir; j >= 0 && j < l.chars.length; j += dir) {
+          const n = l.chars[j];
+          if (/\s/.test(n.c) || n.key === key) continue;
+          if (Math.abs(n.size - c.size) > 0.01) break;
+          const st = unknown.includes(n.key) ? decide(n.key) : styles.get(n.key);
+          if (st) { votes.set(st.file, (votes.get(st.file) || 0) + 1); break; }
+        }
+      }
+    });
+    const v = [...votes].sort((a, b) => b[1] - a[1])[0];
+    styles.set(key, { orig: fonts.get(key), file: v ? v[0] : weights[0], kind: v ? 'borrowed' : 'generic', match: { family } });
+  }
+  return styles;
+}
+
+/** Biên phải khả dụng: tới chữ gần nhất phía bên phải (cột/ô bảng kế bên) trong dải ±3 dòng; không có thì lề phải nội dung. */
 function rightLimit(lines, line, x) {
   const [, y0, , y1] = line.bbox, h = y1 - y0;
   let lim = Math.max(...lines.map((l) => l.bbox[2]));
@@ -110,7 +227,6 @@ function rightLimit(lines, line, x) {
   }
   return Math.max(lim, line.bbox[2]);
 }
-
 function colorOp(c) {
   const f = (v) => (+v).toFixed(3);
   if (!c || !c.length) return '0 g';
@@ -118,61 +234,71 @@ function colorOp(c) {
   if (c.length === 4) return `${c.map(f).join(' ')} k`;
   return `${c.map(f).join(' ')} rg`;
 }
-
 function shrinkQuad(q, k = 0.25) {
-  // giữ phần giữa theo chiều cao để không chạm dòng trên/dưới
   const [ulx, uly, urx, ury, llx, lly, lrx, lry] = q;
   const top = (a, b) => a + (b - a) * k, bot = (a, b) => b - (b - a) * k;
   return [ulx, top(uly, lly), urx, top(ury, lry), llx, bot(uly, lly), lrx, bot(ury, lry)];
 }
 
+/** Dựng chuỗi ký tự mới kèm "ký tự gốc mẫu" quyết định kiểu (phông/cỡ/màu) cho từng ký tự. */
+function buildSequence(findChars, replace, tailChars) {
+  const F = findChars, R = [...NFC(replace)];
+  let p = 0; while (p < F.length && p < R.length && NFC(F[p].c) === R[p]) p++;
+  let q = 0; while (q < F.length - p && q < R.length - p && NFC(F[F.length - 1 - q].c) === R[R.length - 1 - q]) q++;
+  const mid = F[p] || F[p - 1] || F[0];
+  const seq = [];
+  R.forEach((ch, i) => seq.push({ ch, src: i < p ? F[i] : i >= R.length - q ? F[F.length - (R.length - i)] : mid }));
+  for (const c of tailChars) seq.push({ ch: c.c, src: c });
+  while (seq.length && /\s/.test(seq[seq.length - 1].ch)) seq.pop();
+  return seq;
+}
+
 /**
- * Thay `find` bằng `replace` trên một trang.
- * opts.loadFont(file) → Uint8Array dữ liệu phông dự phòng.
- * Trả về báo cáo chi tiết; không ném lỗi khi không tìm thấy (status = 'not-found').
+ * Thay `find` bằng `replace` trên một trang. opts.loadFont(file) → dữ liệu phông dự phòng.
+ * Trả về báo cáo; không ném lỗi khi không tìm thấy (status = 'not-found').
  */
 export function replaceText(doc, pageIndex, find, replace, opts) {
   const page = doc.loadPage(pageIndex);
   const { lines } = readLines(page);
   const want = NFC(find);
   let line = null, s = -1;
-  for (const l of lines) { const i = NFC(l.text).indexOf(want); if (i >= 0 && NFC(l.text).length === l.text.length) { line = l; s = i; break; } }
+  for (const l of lines) { const t = NFC(l.text); const i = t.indexOf(want); if (i >= 0 && t.length === l.text.length) { line = l; s = i; break; } }
   if (!line) return { status: 'not-found', reason: lines.some((l) => NFC(l.text).includes(want)) ? 'decomposed' : 'not-on-one-line' };
-
   const e = s + [...want].length;
-  const tailChars = line.chars.slice(e);
-  const newRun = NFC(replace) + tailChars.map((c) => c.c).join('').replace(/\s+$/, '');
-  const first = line.chars[s];
+  const needed = new Set(line.chars.slice(s).map((c) => c.key));
+  const styles = analyzePage(page, lines, opts, needed);
+
+  const seq = buildSequence(line.chars.slice(s, e), replace, line.chars.slice(e));
   const editChars = line.chars.slice(s);
+  const first = line.chars[s];
   const oldRight = Math.max(...editChars.map((c) => Math.max(c.quad[2], c.quad[6])));
 
-  // --- chọn phông ---
-  let font = null, fontObj = null, strategy = '', fbFile = null;
-  const orig = first.font;
-  if (covers(orig, newRun)) {
-    try { fontObj = doc.addFont(orig); font = orig; strategy = 'A-original'; } catch { font = null; fontObj = null; }
+  // --- phông cho từng kiểu: dùng lại phông gốc (có tên, đủ ký tự) hoặc phông dự phòng đã nhận dạng ---
+  const perKey = new Map();
+  for (const it of seq) { const k = it.src.key; if (!perKey.has(k)) perKey.set(k, ''); perKey.set(k, perKey.get(k) + it.ch); }
+  const choice = new Map();
+  for (const [k, text] of perKey) {
+    const st = styles.get(k);
+    if (!isType3(st.orig) && covers(st.orig, text)) { choice.set(k, { font: st.orig, strategy: 'A-original', label: baseName(st.orig) }); continue; }
+    const f = loadFallback(st.file, opts);
+    if (!covers(f, text)) return { status: 'no-font', fontName: baseName(st.orig), fallback: st.file };
+    const strategy = st.kind === 'same' ? 'B-same-family' : st.kind === 'matched' ? 'C-matched' : st.kind === 'borrowed' ? 'C-borrowed' : 'C-generic';
+    choice.set(k, { font: f, strategy, label: st.file.replace(/\.(ttf|otf)$/, ''), match: st.match });
   }
-  let match = null;
-  if (!font) {
-    const fb = fallbackFor(orig);
-    let file = fb.file, kind = fb.kind;
-    if (fb.kind !== 'same') {
-      // Tên phông không cho biết họ (phông lạ, hoặc Type3 không còn tên): so độ rộng ký tự đo được trên trang.
-      const pairs = advancePairs(line, orig);
-      if (pairs.length >= 4) { match = matchByWidth(pairs, newRun, opts); if (match) { file = match.file; kind = 'matched'; } }
-    }
-    fbFile = file;
-    const f = loadFallback(file, opts);
-    if (!covers(f, newRun)) return { status: 'no-font', fontName: baseName(orig), fallback: file };
-    font = f; fontObj = doc.addFont(f);
-    strategy = kind === 'same' ? 'B-same-family' : kind === 'matched' ? 'C-width-match' : 'C-generic';
+
+  // --- gom thành các đoạn cùng phông/cỡ/màu, đo độ rộng ---
+  const runs = [];
+  for (const it of seq) {
+    const ch = choice.get(it.src.key), col = colorOp(it.src.color), size = +it.src.size.toFixed(3);
+    const g = gid(ch.font, it.ch);
+    const last = runs[runs.length - 1];
+    if (last && last.font === ch.font && last.size === size && last.col === col) last.gids.push(g);
+    else runs.push({ font: ch.font, size, col, gids: [g], strategy: ch.strategy, label: ch.label });
   }
-  // --- đo chữ mới ---
-  const gids = [...newRun].map((ch) => font.encodeCharacter(ch.codePointAt(0)));
-  const width = gids.reduce((w, g) => w + font.advanceGlyph(g, 0), 0) * first.size;
+  let width = 0;
+  for (const r of runs) { r.width = r.gids.reduce((w, g) => w + r.font.advanceGlyph(g, 0), 0) * r.size; width += r.width; }
   const x = first.origin[0];
   const avail = rightLimit(lines, line, x) - x;
-  const oldWidth = oldRight - x;
   let tz = 100, overflow = false;
   if (width > avail) { tz = Math.floor((avail / width) * 100); if (tz < 85) { overflow = true; tz = 85; } }
 
@@ -182,8 +308,7 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   page.applyRedactions(false, mupdf.PDFPage.REDACT_IMAGE_NONE, mupdf.PDFPage.REDACT_LINE_ART_NONE, mupdf.PDFPage.REDACT_TEXT_REMOVE);
 
   // --- vẽ chữ mới ---
-  const ctm = page.getTransform();
-  const inv = mupdf.Matrix.invert(ctm);
+  const inv = mupdf.Matrix.invert(page.getTransform());
   const lin = mupdf.Matrix.concat([1, 0, 0, -1, 0, 0], inv);
   const [px, py] = PT(inv, first.origin);
   const Tm = [lin[0], lin[1], lin[2], lin[3], px, py].map((v) => +v.toFixed(4));
@@ -194,10 +319,15 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   let fonts = res.get('Font');
   if (!fonts || fonts.isNull()) { fonts = doc.newDictionary(); res.put('Font', fonts); }
   fonts = fonts.resolve();
-  let key = 'LMEd1'; for (let k = 1; !fonts.get(key).isNull(); k++) key = 'LMEd' + k;
-  fonts.put(key, fontObj);
-  const hex = gids.map((g) => g.toString(16).padStart(4, '0')).join('');
-  const content = `q\n${colorOp(first.color)}\nBT\n/${key} ${+first.size.toFixed(3)} Tf\n${tz !== 100 ? tz + ' Tz\n' : ''}${Tm.join(' ')} Tm\n<${hex}> Tj\nET\nQ\n`;
+  const keys = new Map(); let n = 1;
+  for (const r of runs) {
+    if (keys.has(r.font)) continue;
+    while (!fonts.get('LMEd' + n).isNull()) n++;
+    fonts.put('LMEd' + n, doc.addFont(r.font)); keys.set(r.font, 'LMEd' + n); n++;
+  }
+  let content = `q\nBT\n${tz !== 100 ? tz + ' Tz\n' : ''}${Tm.join(' ')} Tm\n`;
+  for (const r of runs) content += `${r.col}\n/${keys.get(r.font)} ${r.size} Tf\n<${r.gids.map((g) => g.toString(16).padStart(4, '0')).join('')}> Tj\n`;
+  content += 'ET\nQ\n';
   const old = pageObj.get('Contents');
   const arr = doc.newArray();
   arr.push(doc.addStream('q\n', {}));
@@ -206,12 +336,14 @@ export function replaceText(doc, pageIndex, find, replace, opts) {
   arr.push(doc.addStream(content, {}));
   pageObj.put('Contents', arr);
 
-  const lineH = line.bbox[3] - line.bbox[1];
-  const region = [x, line.bbox[1], Math.max(oldRight, x + width * tz / 100), line.bbox[3]];
+  const used = [...new Map(runs.map((r) => [r.label, r.strategy])).entries()];
+  const rank = { 'C-generic': 4, 'C-borrowed': 3, 'C-matched': 2, 'B-same-family': 1, 'A-original': 0 };
+  const worst = used.reduce((w, [, st]) => (rank[st] > rank[w] ? st : w), 'A-original');
+  const m = [...choice.values()].find((c) => c.match);
   return {
-    status: 'ok', strategy, fontName: baseName(orig), fallback: fbFile, size: +first.size.toFixed(2),
-    match: match ? { err: +(match.err * 100).toFixed(1), perChar: +(match.perChar * 100).toFixed(1) } : null,
-    width: +width.toFixed(1), oldWidth: +oldWidth.toFixed(1), avail: +avail.toFixed(1), tz, overflow,
-    region, lineBox: line.bbox, lineHeight: lineH, newRun,
+    status: 'ok', strategy: worst, fonts: used.map(([l, st]) => `${l} (${st})`), fontName: baseName(first.font),
+    fallback: used.map(([l]) => l).join(' + '), match: m ? m.match : null, runs: runs.length,
+    size: +first.size.toFixed(2), width: +width.toFixed(1), oldWidth: +(oldRight - x).toFixed(1), avail: +avail.toFixed(1), tz, overflow,
+    region: [x, line.bbox[1], Math.max(oldRight, x + width * tz / 100), line.bbox[3]], lineBox: line.bbox,
   };
 }

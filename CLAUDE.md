@@ -12,7 +12,7 @@ Trình sửa PDF miễn phí cho mọi người của LANHMAR, mục tiêu **s�
 PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường chỉ nhúng ký tự đã dùng. Mục tiêu: bấm vào một dòng/đoạn → sửa → chữ dàn lại trong khung đó → phông khớp gần nhất (dự phòng phông có đủ dấu tiếng Việt, ví dụ Be Vietnam Pro / Noto Sans / Noto Serif) → chữ cũ bị **xoá thật** (redaction), không chỉ che trắng. Không hứa sửa như Word.
 
 ## Cấu trúc repo
-- `spike/lib/edit.mjs`: lõi sửa chữ (dùng chung cho Node và trình duyệt). Chiến lược phông: A dùng lại phông gốc → B phông cùng họ/đo bằng (Times→Liberation Serif, Arial→Liberation Sans, Calibri→Carlito, Inter) → C so độ rộng ký tự đo được để chọn phông + độ đậm khớp nhất (cho phông lạ và phông Type3 không tên).
+- `spike/lib/edit.mjs`: lõi sửa chữ (dùng chung cho Node và trình duyệt). Chọn phông theo từng nhóm ký tự: A dùng lại phông gốc nếu có tên và đủ ký tự → B phông cùng họ/đo bằng theo tên (Times→Liberation Serif, Arial→Liberation Sans, Calibri→Carlito, Inter) → C với phông lạ/Type3: chốt một họ cho cả trang bằng độ rộng ký tự gộp, chọn độ đậm từng phông bằng **lượng mực** (vẽ lại ký tự gốc bằng phông ứng viên, so điểm tối), phông quá ít ký tự mượn độ đậm của ký tự gần nhất. Kiểu chữ giữ **theo từng ký tự** khi dựng lại đuôi dòng (`buildSequence`).
 - `spike/run.mjs`: bộ thử 6 tiêu chí, `npm run spike` (mẫu tổng hợp) hoặc `node spike/run.mjs --real` (PDF thật trong `spike/samples/real/`, không commit). Báo cáo `spike/report/REPORT.md`, nhận định `spike/FINDINGS.md`.
 - `spike/make-samples.mjs`: sinh mẫu bằng Chromium (cần Playwright). Mẫu đã commit.
 - `fonts/`: phông dự phòng đủ dấu tiếng Việt (Liberation, Carlito, DejaVu, Inter) + `fonts/licenses/`. Caladea (thay Cambria) **thiếu dấu tiếng Việt**, không dùng.
@@ -22,7 +22,10 @@ PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường ch
 - `toPixmap().getPixels()` trả về vùng nhớ WASM, phải `.slice()` ngay, nếu không dữ liệu bị ghi đè (ảnh đen, so điểm ảnh sai).
 - `saveToBuffer()` trả `mupdf.Buffer`, dùng `.asUint8Array().slice()` trước khi đưa cho Node/pdf.js.
 - Chromium nhúng phông CFF/OTF thành nhiều phông Type3 không tên, mỗi cái vài ký tự: khi đo độ rộng phải gom mọi ký tự Type3 cùng cỡ trên dòng.
-- Tiêu chí tự động chưa đủ: luôn xem ảnh trước/sau (từng có ca "đạt" nhưng mất in đậm).
+- Tiêu chí tự động chưa đủ: luôn xem ảnh trước/sau (từng có ca "đạt" nhưng mất in đậm, mất SemiBold, in đậm cả dòng trộn).
+- Độ rộng ký tự phân biệt được họ phông nhưng **không** phân biệt được độ đậm của Inter; dùng lượng mực.
+- Lượng mực phải tự xác định nền là điểm khác màu chữ nhất (chữ sáng trên nền tối thì nền là điểm tối nhất).
+- Notion xuất PDF qua Headless Chrome: gần như toàn bộ là Type3, tiêu đề Inter SemiBold, tiêu đề bìa Inter Bold; gạch chân link mục lục là nét vẽ rời.
 
 ## Bước 1: thử nghiệm chất lượng (làm trước, chưa xây giao diện thật)
 Bộ mẫu ~10 PDF tiếng Việt thật: xuất từ Word, Google Docs, Canva, sách dàn trang (InDesign), slide, bản scan. Chấm từng file theo 4 tiêu chí, ghi vào `spike/REPORT.md`:
@@ -30,8 +33,8 @@ Bộ mẫu ~10 PDF tiếng Việt thật: xuất từ Word, Google Docs, Canva, 
 2. Sửa một câu: phông khớp, không lộ đường sửa.
 3. Bố cục quanh chỗ sửa giữ nguyên.
 4. File kết quả mở đúng trong Chrome, Acrobat Reader, và extract lại thấy chữ mới, không còn chữ cũ.
-Trạng thái 10/11/2026: mẫu tổng hợp 10/11 ca đạt (ca còn lại là bản scan, cần OCR). **Đang chờ bộ PDF thật** để chấm tiếp.
-Đạt → xây thật. Không đạt → báo bằng số liệu, lùi về phương án chú thích + thao tác trang (PDF.js editor + pdf-lib).
+Trạng thái 10/11/2026: mẫu tổng hợp 10/11 ca đạt (ca còn lại là bản scan, cần OCR); **bộ thật 5 bài giảng Notion: 14/14 ca đạt, ảnh không lộ đường sửa**. Chi tiết `spike/FINDINGS.md`. Bộ thật tải từ thư mục Drive của chủ dự án (id `10OS1QAeY3LMDaGPnjzDOiYmUIkbdbvwh`) qua `drive.usercontent.google.com` vào `spike/samples/real/` (không commit); còn thiếu mẫu Word/InDesign/Canva.
+**Đã đạt → bước tiếp theo là xây giao diện bấm-vào-dòng-để-sửa** (thứ tự ưu tiên trong `spike/FINDINGS.md`). Không đạt → báo bằng số liệu, lùi về phương án chú thích + thao tác trang (PDF.js editor + pdf-lib).
 
 ## Tích hợp với hệ LANHMAR (đã có sẵn, dùng lại)
 - Project Google Cloud của Drive Ebook Reader: project number `313294325944`, OAuth app đã **In production** với scope `drive.file` (không nhạy cảm, không cần xác minh). Trang Google Picker mẫu: `drive-picker.html` trong repo `lanhmar-hub`.

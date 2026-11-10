@@ -7,6 +7,6 @@
 | Liberation Serif, Liberation Sans | 2.x | SIL OFL 1.1 — `fonts/licenses/Liberation.txt` | phông dự phòng (đo bằng Times New Roman, Arial) |
 | Carlito | — | SIL OFL 1.1 — `fonts/licenses/Carlito.txt` | phông dự phòng (đo bằng Calibri) |
 | DejaVu Sans, DejaVu Serif | — | Bitstream Vera / DejaVu — `fonts/licenses/DejaVu.txt` | phông dự phòng chung |
-| Inter | — | SIL OFL 1.1 — `fonts/licenses/Inter.txt` | phông dự phòng |
+| Inter (Regular, Medium, SemiBold, Bold) | — | SIL OFL 1.1 — `fonts/licenses/Inter.txt` | phông dự phòng (Notion, thiết kế) |
 
 Phông được phân phối nguyên bản, không chỉnh sửa. / Fonts are redistributed unmodified.

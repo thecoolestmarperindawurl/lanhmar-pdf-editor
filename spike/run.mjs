@@ -26,16 +26,16 @@ const require = createRequire(import.meta.url);
 const pdfjsDir = path.dirname(require.resolve('pdfjs-dist/package.json'));
 const pdfjs = await import(pathToFileURL(path.join(pdfjsDir, 'legacy/build/pdf.mjs')).href);
 pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(pdfjsDir, 'legacy/build/pdf.worker.mjs')).href;
-async function pdfjsText(buf) {
+async function pdfjsText(buf, pageNo = 1) {
   const task = pdfjs.getDocument({ data: new Uint8Array(buf), isEvalSupported: false, verbosity: 0, standardFontDataUrl: pathToFileURL(path.join(pdfjsDir, 'standard_fonts/')).href });
   const doc = await task.promise;
-  const p = await doc.getPage(1); const tc = await p.getTextContent();
+  const p = await doc.getPage(pageNo); const tc = await p.getTextContent();
   const t = tc.items.map((i) => i.str + (i.hasEOL ? '\n' : '')).join('');
   await task.destroy(); return t;
 }
 
-function render(doc) {
-  const pm = doc.loadPage(0).toPixmap([SCALE, 0, 0, SCALE, 0, 0], mupdf.ColorSpace.DeviceRGB, false, true);
+function render(doc, pi = 0) {
+  const pm = doc.loadPage(pi).toPixmap([SCALE, 0, 0, SCALE, 0, 0], mupdf.ColorSpace.DeviceRGB, false, true);
   // chép điểm ảnh ra khỏi bộ nhớ WASM ngay, vì vùng nhớ có thể bị dùng lại sau các thao tác tiếp theo
   return { w: pm.getWidth(), h: pm.getHeight(), x: pm.getX(), y: pm.getY(), stride: pm.getStride(), px: pm.getPixels().slice() };
 }
@@ -72,23 +72,25 @@ for (const [sid, s] of Object.entries(cases)) {
   const extractOk = s.expect.every((e) => NFC(textB).includes(NFC(e)));
   const missing = s.expect.filter((e) => !NFC(textB).includes(NFC(e)));
   for (const c of s.cases) {
-    const r = { sample: sid, label: s.label, id: c.id, find: c.find, replace: c.replace, note: c.note, extractOk, missing, chars: textB.replace(/\s/g, '').length };
+    const pi = (c.page || 1) - 1; // trang (đếm từ 1) của ca sửa
+    const textP = pi === 0 ? textB : pageText(docB.loadPage(pi));
+    const r = { sample: sid, label: s.label, id: c.id, page: pi + 1, find: c.find, replace: c.replace, note: c.note, extractOk, missing, chars: textP.replace(/\s/g, '').length };
     try {
       const doc = mupdf.Document.openDocument(src, 'application/pdf').asPDF();
-      const before = render(doc);
-      const rep = replaceText(doc, 0, c.find, c.replace, { loadFont });
+      const before = render(doc, pi);
+      const rep = replaceText(doc, pi, c.find, c.replace, { loadFont });
       Object.assign(r, rep);
       if (rep.status === 'ok') {
         const buf = doc.saveToBuffer('garbage=compact,compress=yes').asUint8Array().slice();
         fs.writeFileSync(path.join(OUTPDF, `${sid}-${c.id}.pdf`), buf);
         const doc2 = mupdf.Document.openDocument(buf, 'application/pdf');
-        const textA = pageText(doc2.loadPage(0));
+        const textA = pageText(doc2.loadPage(pi));
         // không tính chỗ chữ cũ nằm bên trong chữ mới (vd. “Facebook” trong “Facebook Ads”)
-        r.oldRemoved = count(NFC(textA).split(NFC(c.replace)).join('\u0000'), c.find) === count(NFC(textB).split(NFC(c.replace)).join('\u0000'), c.find) - 1;
+        r.oldRemoved = count(NFC(textA).split(NFC(c.replace)).join('\u0000'), c.find) === count(NFC(textP).split(NFC(c.replace)).join('\u0000'), c.find) - 1;
         r.newMupdf = NFC(textA).includes(NFC(c.replace));
-        const tj = await pdfjsText(buf);
+        const tj = await pdfjsText(buf, pi + 1);
         r.newPdfjs = NFC(tj).replace(/\s+/g, ' ').includes(NFC(c.replace));
-        const after = render(doc2);
+        const after = render(doc2, pi);
         r.outsidePixels = diffOutside(before, after, rep.region);
         const box = [Math.min(rep.region[0], rep.lineBox[0]), rep.region[1], Math.max(rep.region[2], rep.lineBox[2]), rep.region[3]];
         crop(before, box, `${sid}-${c.id}-before.png`);
@@ -97,14 +99,14 @@ for (const [sid, s] of Object.entries(cases)) {
     } catch (e) { r.status = 'error'; r.error = String(e && e.message || e); }
     r.pass = r.status === 'ok' && r.extractOk && r.oldRemoved && r.newMupdf && r.newPdfjs && r.outsidePixels === 0 && !r.overflow;
     results.push(r);
-    console.log(`${r.pass ? 'ĐẠT ' : 'CHƯA'} ${sid}/${c.id} ${r.status} ${r.strategy || ''} tz=${r.tz ?? '-'} outside=${r.outsidePixels ?? '-'} ${r.error || r.reason || ''}`);
+    console.log(`${r.pass ? 'ĐẠT ' : 'CHƯA'} ${sid}/${c.id} p${r.page} ${r.status} ${r.strategy || ''} tz=${r.tz ?? '-'} outside=${r.outsidePixels ?? '-'} ${r.error || r.reason || ''}`);
   }
 }
 fs.writeFileSync(path.join(REPORT, 'results.json'), JSON.stringify(results, null, 2));
 
 // ---------- REPORT.md ----------
 const yes = (b) => (b ? '✅' : '❌');
-const STRAT = { 'A-original': 'Dùng lại phông gốc', 'B-same-family': 'Phông cùng họ', 'C-width-match': 'Phông khớp độ rộng', 'C-generic': 'Phông dự phòng chung' };
+const STRAT = { 'A-original': 'Dùng lại phông gốc', 'B-same-family': 'Phông cùng họ', 'C-matched': 'Phông nhận dạng (độ rộng + lượng mực)', 'C-borrowed': 'Phông mượn từ chữ kề', 'C-generic': 'Phông dự phòng chung' };
 const mupdfVer = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/mupdf/package.json'), 'utf8')).version;
 let md = `# Báo cáo thử chất lượng sửa chữ gốc (MuPDF.js ${mupdfVer})\n\n`;
 md += `Sinh tự động bởi \`node spike/run.mjs\` lúc ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC. Bộ mẫu: PDF tiếng Việt do Chromium xuất (phông nhúng dạng tập con như Word/Google Docs/Canva). Đây là **mẫu tổng hợp**: chứng minh cơ chế, chưa thay được bộ PDF thật.\n\n`;
@@ -112,14 +114,14 @@ const pass = results.filter((r) => r.pass).length;
 md += `**Kết quả: ${pass}/${results.length} ca đạt** đủ cả 6 tiêu chí.\n\n`;
 md += `| Mẫu | Ca | Sửa | Đọc chữ gốc đúng | Phông dùng | Chữ cũ bị xoá | Chữ mới đọc được (MuPDF / pdf.js) | Co ngang | Điểm ảnh đổi ngoài vùng sửa | Kết quả |\n|---|---|---|---|---|---|---|---|---|---|\n`;
 for (const r of results) {
-  const fontCell = r.status === 'ok' ? `${STRAT[r.strategy]}${r.fallback ? ` (${r.fallback.replace(/\.(ttf|otf)$/, '')}${r.match ? `, lệch ${r.match.perChar}%/ký tự` : ''})` : ''}; gốc: ${r.fontName}` : (r.status === 'not-found' ? 'không tìm thấy chữ' : r.status === 'no-font' ? `thiếu phông (${r.fontName})` : r.error || r.status);
+  const fontCell = r.status === 'ok' ? `${STRAT[r.strategy]}${r.fallback ? ` (${r.fallback}${r.match && r.match.ink != null ? `, độ rộng lệch ${r.match.perChar}%, mực lệch ${r.match.ink}%` : ''})` : ''}; gốc: ${r.fontName}` : (r.status === 'not-found' ? 'không tìm thấy chữ' : r.status === 'no-font' ? `thiếu phông (${r.fontName})` : r.error || r.status);
   md += `| ${r.sample} | ${r.id} | “${r.find}” → “${r.replace}” | ${yes(r.extractOk)} | ${fontCell} | ${r.status === 'ok' ? yes(r.oldRemoved) : '—'} | ${r.status === 'ok' ? `${yes(r.newMupdf)} / ${yes(r.newPdfjs)}` : '—'} | ${r.status === 'ok' ? (r.overflow ? `❌ tràn (cần ${Math.round(r.avail / r.width * 100)}%)` : r.tz === 100 ? 'không' : r.tz + '%') : '—'} | ${r.status === 'ok' ? r.outsidePixels : '—'} | ${r.pass ? '✅ Đạt' : '❌ Chưa'} |\n`;
 }
 md += `\nTiêu chí đạt: đọc đúng chữ có dấu trong file gốc; chữ cũ bị xoá khỏi lớp chữ; chữ mới đọc được bằng cả MuPDF và pdf.js; không có điểm ảnh nào đổi ngoài vùng sửa (bố cục giữ nguyên); không tràn quá mức co ngang 85%. **Độ giống phông bằng mắt** cần người xem ảnh bên dưới.\n\n## Ảnh trước / sau\n\n`;
 for (const r of results) {
-  md += `### ${r.sample} · ${r.id}: ${r.note}\n\n${r.label}. “${r.find}” → “${r.replace}”.\n\n`;
+  md += `### ${r.sample} · ${r.id}${r.page > 1 ? ` (trang ${r.page})` : ''}: ${r.note}\n\n${r.label}. “${r.find}” → “${r.replace}”.\n\n`;
   if (r.status === 'ok') md += `| Trước | Sau |\n|---|---|\n| ![](${r.sample}-${r.id}-before.png) | ![](${r.sample}-${r.id}-after.png) |\n\n`;
   else md += `Không sửa được: ${r.status === 'not-found' ? (r.chars === 0 ? 'file không có lớp chữ (bản scan), cần nhận dạng chữ (OCR) trước.' : 'không tìm thấy cụm chữ trên một dòng.') : r.error || r.status}\n\n`;
 }
 fs.writeFileSync(path.join(REPORT, 'REPORT.md'), md);
-console.log(`\n${pass}/${results.length} ca đạt → spike/report/REPORT.md`);
+console.log(`\n${pass}/${results.length} ca đạt → ${path.relative(ROOT, path.join(REPORT, 'REPORT.md'))}`);

@@ -1,37 +1,52 @@
-# Nhận định sau lượt thử đầu (10/11/2026)
+# Nhận định sau hai lượt thử (10/11/2026)
 
-Dữ liệu: 6 PDF tiếng Việt tổng hợp do Chromium xuất, 11 ca sửa. Bảng chi tiết và ảnh: [`report/REPORT.md`](report/REPORT.md).
+## Dữ liệu thử
 
-## Đã kiểm chứng (đo được)
+| Bộ | Nguồn | Số file | Số ca sửa |
+|---|---|---|---|
+| Tổng hợp | Chromium xuất từ HTML: Times, Arial + bảng, Calibri hai cột, phông lạ, slide Inter, bản scan | 6 | 11 |
+| **Thật** | 5 bài giảng quản lý dự án, **Notion xuất PDF** (Headless Chrome 128), 12–21 trang, 3,7–9 MB | 5 | 14 |
 
-| Kết quả | Số liệu |
-|---|---|
-| Ca đạt đủ 6 tiêu chí | 10/11 |
-| Ca không sửa được | 1, bản scan không có lớp chữ (đúng dự kiến) |
-| Điểm ảnh đổi ngoài vùng sửa | 0 ở cả 10 ca (cả trang có 3.000–11.000 điểm đổi, đều nằm trong vùng sửa) |
-| Chữ mới đọc được bằng MuPDF và pdf.js | 10/10 |
-| Chữ cũ còn sót trong lớp chữ | 0/10 |
-| Ca phải co ngang chữ | 3/10: 99%, 89%, 87% |
-| Dung lượng lõi WASM khi tải trên web | 10,4 MB gốc · 4,7 MB nén gzip · 3,6 MB nén brotli |
+Bộ thật không đưa lên repo (tài liệu khoá học). Báo cáo của bộ thật nằm ở `spike/report-real/` trên máy chạy thử, không commit. Bảng và ảnh của bộ tổng hợp: [`report/REPORT.md`](report/REPORT.md).
 
-Phông được chọn theo từng tình huống:
+## Kết quả đo được
 
-| Tình huống | Cách chọn | Đánh giá bằng mắt |
+| Chỉ số | Tổng hợp | Thật |
 |---|---|---|
-| Mọi ký tự mới đã có trong phông nhúng | Dùng lại phông gốc | Không phân biệt được |
-| Thiếu ký tự (vd. “ỹ”, chữ số mới), phông Times/Arial/Calibri | Phông cùng họ đo bằng (Liberation, Carlito) | Không phân biệt được |
-| Phông Type3 không tên (Chromium xuất từ phông OTF) | So độ rộng ký tự: nhận đúng Inter thường / Inter đậm, lệch 0,6–1,4% | Không phân biệt được |
-| Phông lạ không có trong bộ (FreeSerif) | So độ rộng: chọn Liberation Serif, lệch 2,4%/ký tự | Gần giống, mắt tinh thấy khác nhẹ |
+| Ca đạt đủ 6 tiêu chí tự động | 10/11 | **14/14** |
+| Điểm ảnh đổi ngoài vùng sửa | 0 ở mọi ca | 0 ở mọi ca |
+| Chữ mới đọc được bằng MuPDF và pdf.js | 10/10 | 14/14 |
+| Chữ cũ còn sót trong lớp chữ | 0 | 0 |
+| Ca phải co ngang chữ | 3 (87–99%) | 0 |
+| Trích chữ tiếng Việt đúng dấu từ file gốc | 5/6 file (trừ bản scan) | 5/5 file |
+| Dung lượng lõi WASM khi tải trên web | 10,4 MB gốc · 4,7 MB gzip · 3,6 MB brotli | |
 
-## Hạn chế còn lại (cần làm tiếp)
+Ca không đạt duy nhất là bản scan, không có lớp chữ, đúng dự kiến.
 
-1. **Chữ dài hơn trong đoạn căn đều bị co ngang** (87–89%): vừa chỗ nhưng nhìn kỹ thấy chữ hẹp hơn dòng trên dưới. Cần **dàn lại cả đoạn** (đẩy chữ thừa xuống dòng sau) thay vì chỉ viết lại một dòng.
-2. **Thứ tự đọc**: chữ mới được ghi ở cuối nội dung trang, nên khi copy cả trang hoặc dùng trình đọc màn hình, cụm vừa sửa xuất hiện cuối cùng (thấy rõ ở ca ô bảng). Cần chèn chữ mới đúng chỗ trong luồng nội dung.
-3. **Bản scan** cần nhận dạng chữ (OCR) trước khi sửa; chưa làm. Phương án miễn phí trong trình duyệt: Tesseract.js (cần kiểm chứng chất lượng với tiếng Việt).
-4. **Chỉ sửa trong một dòng**; cụm chữ vắt qua hai dòng chưa hỗ trợ.
-5. **Mẫu tổng hợp** do cùng một công cụ (Chromium) xuất. PDF từ Word, InDesign, Canva thật có thể nhúng phông khác (Type1, TrueType mã hoá riêng) và chưa được thử. **Đây là rủi ro lớn nhất còn lại.**
+## Điều bộ thật dạy thêm (bộ tổng hợp không bắt được)
 
-## Ý kiến (chưa kiểm chứng)
+PDF xuất từ Notion gần như toàn bộ là **phông Type3 không tên**, bị Chrome chia vụn thành hàng chục phông con, mỗi cái vài ký tự. Ba lỗi lộ ra khi xem ảnh, dù bảng tự động vẫn báo "đạt":
 
-- Với bộ phông dự phòng hiện tại, tài liệu văn phòng (Times, Arial, Calibri) có triển vọng tốt nhất. Bộ phông cần mở rộng cho tài liệu thiết kế: các phông Google phổ biến có dấu tiếng Việt như Be Vietnam Pro, Montserrat, Roboto, Noto Sans/Serif, Lora, Merriweather (đều giấy phép OFL, nhúng hợp lệ).
-- Nếu bộ PDF thật cho kết quả tương tự, MuPDF.js đủ tốt để xây ứng dụng. Bước tiếp theo theo thứ tự ưu tiên: dàn lại đoạn → thứ tự đọc → giao diện bấm-để-sửa → tích hợp Google Drive.
+1. **Mất độ đậm vừa**: tiêu đề Notion là Inter SemiBold. Bộ phông chỉ có Regular/Bold nên tiêu đề sửa xong thành chữ thường. → Thêm Inter Medium và SemiBold.
+2. **Độ rộng ký tự không đủ để phân biệt độ đậm** (Inter các độ đậm có độ rộng gần nhau). → Chọn độ đậm bằng **lượng mực**: vẽ lại đúng các ký tự gốc bằng từng độ đậm ứng viên tại đúng vị trí, so lượng điểm tối với bản gốc. Lệch còn 0–4,6% (một ca chữ xám mục lục lệch 28% nhưng vẫn chọn đúng Regular).
+3. **Dòng trộn thường/đậm** ("Nên áp dụng cho nhóm **3-5 người trở lên**.") bị in đậm cả câu. → Giữ kiểu chữ **theo từng ký tự**: phần giống nhau ở đầu/cuối giữ kiểu gốc, phần mới lấy kiểu của chữ nó thay thế, đuôi dòng giữ kiểu gốc. Kết quả: "nhóm **từ 4 người trở lên**".
+
+Thêm: chốt **một họ phông cho cả trang** (gộp số đo mọi phông Type3) để tránh dòng bị trộn hai họ; chữ số đứng lẻ mượn độ đậm của ký tự gần nhất đo được.
+
+Kết quả bằng mắt trên bộ thật: tiêu đề bìa 30pt, tiêu đề cấp 2–3, thân bài, chữ xám mục lục, dòng có emoji ✅, ngoặc kép cong, dòng trộn đậm/thường đều **không phân biệt được chỗ sửa**. Có cả một lỗi chính tả thật trong tài liệu được sửa: “TỔNG LẾT” → “TỔNG KẾT”.
+
+## Hạn chế còn lại (thứ tự ưu tiên)
+
+1. **Trang trí vẽ rời khỏi chữ** (gạch chân link mục lục Notion, gạch ngang, nền tô): không đổi theo độ dài chữ mới. Thấy ở ca rút ngắn mục lục: gạch chân dài hơn chữ. Cần nhận diện nét ngang ngay dưới chữ và co/giãn theo.
+2. **Chữ dài hơn trong đoạn căn đều bị co ngang** (87–89% ở bộ tổng hợp). Cần dàn lại cả đoạn.
+3. **Thứ tự đọc**: chữ mới ghi ở cuối luồng nội dung, copy cả trang thì cụm vừa sửa nằm cuối.
+4. **Chỉ sửa trong một dòng**; cụm vắt hai dòng chưa hỗ trợ.
+5. **Bản scan** cần OCR (chưa làm; ứng viên miễn phí: Tesseract.js, cần kiểm chứng với tiếng Việt).
+6. **Chữ nghiêng** của phông Type3 chưa nhận dạng được (đang mặc định chữ đứng).
+7. **Độ phủ nguồn**: mới có PDF từ Chromium (Notion, HTML). Word, InDesign, Canva thật vẫn chưa thử.
+
+## Kết luận và đề xuất (ý kiến)
+
+MuPDF.js đạt mục tiêu chất lượng của mức 3 trên cả hai bộ: sửa một dòng không lộ đường sửa, không xê dịch gì xung quanh, file vẫn tìm/copy được. Đủ cơ sở để bắt đầu xây ứng dụng, song song bổ sung mẫu Word/Canva.
+
+Thứ tự đề xuất: (1) giao diện bấm-vào-dòng-để-sửa dùng lõi hiện tại; (2) xử lý gạch chân/gạch ngang; (3) dàn lại đoạn; (4) thứ tự đọc; (5) tích hợp Google Drive; (6) OCR.
