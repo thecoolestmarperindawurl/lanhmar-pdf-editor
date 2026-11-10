@@ -22,7 +22,8 @@ python3 -m http.server 8000   # rồi mở http://localhost:8000
 
 | Đường dẫn | Vai trò |
 |---|---|
-| `index.html`, `app/` | Giao diện web (song ngữ VI/EN) và luồng nền `app/worker.js` chạy MuPDF |
+| `index.html`, `app/` | Giao diện web (song ngữ VI/EN), luồng nền `app/worker.js` chạy MuPDF, `app/drive.js` mở/lưu Google Drive |
+| `docs/` | Hướng dẫn bật trang web, tên miền, Google Drive |
 | `src/edit.mjs` | Lõi sửa chữ, dùng chung cho trình duyệt và bộ thử |
 | `vendor/mupdf/` | MuPDF.js 1.28.6 bản trình duyệt (AGPL-3.0) |
 | `fonts/` | Phông dự phòng đủ dấu tiếng Việt |

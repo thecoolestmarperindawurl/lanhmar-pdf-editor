@@ -10,7 +10,7 @@
 <link rel="icon" href="app/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app/app.css?v=3">
+<link rel="stylesheet" href="app/app.css?v=4">
 </head>
 <body>
 <header class="bar">
@@ -28,6 +28,7 @@
     <button class="ib" id="zoomIn" data-i-title="zoomIn">+</button>
     <span class="sep"></span>
     <label class="btn ghost sm" for="fileIn" data-i="openOther"></label>
+    <button class="btn ghost sm" id="saveDrive" data-i="saveDrive" hidden></button>
     <button class="btn sm" id="download" data-i="download"></button>
   </div>
   <div class="lang"><button type="button" data-lang="vi">VI</button><button type="button" data-lang="en">EN</button></div>
@@ -39,11 +40,16 @@
       <p class="kicker" data-i="kicker"></p>
       <h1 data-ih="h1"></h1>
       <p class="lead" data-i="lead"></p>
+      <div class="drivecall" id="driveCall" hidden>
+        <p id="driveCallMsg"></p>
+        <button class="btn" id="driveCallBtn" data-i="driveCallBtn"></button>
+      </div>
       <div class="drop" id="drop">
         <div class="drop-ico" aria-hidden="true">⬆</div>
         <p data-i="drop"></p>
         <div class="row">
           <label class="btn" for="fileIn" data-i="choose"></label>
+          <button class="btn ghost" id="fromDrive" data-i="fromDrive" hidden></button>
           <button class="btn ghost" id="demo" data-i="demo"></button>
         </div>
         <p class="tiny" data-i="privacy"></p>
@@ -90,6 +96,6 @@
   · <a href="https://lanhmar.id.vn" target="_blank" rel="noopener">lanhmar.id.vn</a>
 </footer>
 
-<script type="module" src="app/app.js?v=3"></script>
+<script type="module" src="app/app.js?v=4"></script>
 </body>
 </html>
