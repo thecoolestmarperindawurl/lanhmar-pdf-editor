@@ -1,3 +1,5 @@
+import { driveEnabled, pickPdf, loadFile, saveCopy } from './drive.js';
+
 // LANHMAR PDF Editor — giao diện: mở PDF, vẽ trang, bấm vào dòng để sửa, hoàn tác, tải về.
 // UI: open a PDF, render pages, click a line to edit it, undo/redo, download.
 
@@ -33,6 +35,14 @@ const I18N = {
     undone: 'Đã hoàn tác.', redone: 'Đã làm lại.', saved: 'Đã tải về {n}.',
     leave: 'Bạn có thay đổi chưa tải về. Rời trang?',
     foot: '© LANHMAR · Mã nguồn mở AGPL-3.0', source: 'Mã nguồn trên GitHub',
+    fromDrive: 'Mở từ Google Drive', saveDrive: 'Lưu vào Drive', driveCallBtn: 'Mở file từ Google Drive',
+    driveCall: 'Bạn vừa bấm “Sửa PDF này” từ Drive. Bấm nút dưới để đăng nhập Google và mở file.',
+    driveCallNamed: 'Bạn vừa bấm “Sửa PDF này” cho “{n}”. Bấm nút dưới để đăng nhập Google và mở file.',
+    driveOff: 'Trang này chưa bật kết nối Google Drive. Bạn tải file về máy rồi mở bằng nút Chọn file PDF nhé.',
+    drivePick: 'Google cần bạn chọn file này một lần để cấp quyền cho trang. Mình đã điền sẵn tên để tìm.',
+    driveLoading: 'Đang tải file từ Google Drive…', driveSaving: 'Đang lưu bản sao vào Google Drive…',
+    driveSaved: 'Đã lưu “{n}” vào Drive, cạnh file gốc.', driveOpen: 'Mở trên Drive', driveErr: 'Google Drive báo lỗi: {e}',
+    driveAuth: 'Bạn chưa đăng nhập hoặc chưa cho phép quyền truy cập Google Drive.', copySuffix: ' (đã sửa)',
   },
   en: {
     kicker: '★ FREE · RUNS IN YOUR BROWSER',
@@ -64,6 +74,14 @@ const I18N = {
     undone: 'Undone.', redone: 'Redone.', saved: 'Downloaded {n}.',
     leave: 'You have changes that are not downloaded. Leave the page?',
     foot: '© LANHMAR · Open source AGPL-3.0', source: 'Source code on GitHub',
+    fromDrive: 'Open from Google Drive', saveDrive: 'Save to Drive', driveCallBtn: 'Open the file from Google Drive',
+    driveCall: 'You clicked “Edit this PDF” in Drive. Click below to sign in with Google and open the file.',
+    driveCallNamed: 'You clicked “Edit this PDF” for “{n}”. Click below to sign in with Google and open the file.',
+    driveOff: 'Google Drive is not enabled on this page yet. Download the file and open it with Choose a PDF.',
+    drivePick: 'Google needs you to pick this file once to grant the page access. The name is pre-filled.',
+    driveLoading: 'Downloading the file from Google Drive…', driveSaving: 'Saving a copy to Google Drive…',
+    driveSaved: 'Saved “{n}” to Drive next to the original.', driveOpen: 'Open in Drive', driveErr: 'Google Drive error: {e}',
+    driveAuth: 'You are not signed in or did not allow Google Drive access.', copySuffix: ' (edited)',
   },
 };
 let lang = (() => { try { const l = localStorage.getItem('lm_lang'); if (l === 'vi' || l === 'en') return l; } catch { /* ignore */ } return (navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en'; })();
@@ -83,10 +101,11 @@ applyLang();
 
 // ---------- tiện ích ----------
 const $ = (id) => document.getElementById(id);
-function toast(msg, kind = '', sub = '') {
+function toast(msg, kind = '', sub = '', link = null) {
   const t = document.createElement('div');
   t.className = 'toast ' + kind;
   t.textContent = msg;
+  if (link) { const a = document.createElement('a'); a.href = link.href; a.target = '_blank'; a.rel = 'noopener'; a.textContent = link.label; t.appendChild(a); }
   if (sub) { const s = document.createElement('small'); s.textContent = sub; t.appendChild(s); }
   const box = $('toasts'); box.appendChild(t);
   while (box.children.length > 2) box.firstElementChild.remove();
@@ -120,15 +139,16 @@ function call(cmd, ...args) {
 }
 
 // ---------- trạng thái ----------
-const S = { name: '', pages: [], zoom: 1, edits: 0, dirty: false, editing: null, edited: new Map() };
+const S = { name: '', pages: [], zoom: 1, edits: 0, dirty: false, editing: null, edited: new Map(), drive: null };
 
-async function openBytes(buf, name) {
+async function openBytes(buf, name, drive = null) {
   busy(T('loadingEngine'));
   try { await startWorker(); } catch { busy(); toast(T('errWorker'), 'err'); return; }
   busy(T('opening'));
   try {
     const { pages } = await call('open', buf);
-    Object.assign(S, { name, pages, edits: 0, dirty: false, edited: new Map() });
+    Object.assign(S, { name, pages, edits: 0, dirty: false, edited: new Map(), drive });
+    $('saveDrive').hidden = !drive;
     $('home').hidden = true; $('viewer').hidden = false; $('tools').hidden = false;
     $('fname').textContent = name; $('fname').title = name;
     S.zoom = fitZoom();
@@ -314,6 +334,59 @@ $('demo').addEventListener('click', async () => {
   const r = await fetch(new URL('../spike/samples/s1-word-times.pdf', import.meta.url));
   openBytes(await r.arrayBuffer(), lang === 'vi' ? 'mau-bao-cao.pdf' : 'sample-report.pdf');
 });
+// ---------- Google Drive ----------
+function driveError(e) {
+  busy();
+  if (/AUTH|popup|access_denied/i.test(e.message)) toast(T('driveAuth'), 'err');
+  else toast(T('driveErr', { e: e.message }), 'err');
+}
+async function openDriveFile(id, nameHint) {
+  try {
+    let got;
+    try { busy(T('driveLoading')); got = await loadFile(id); }
+    catch (e) {
+      if (e.status !== 403 && e.status !== 404) throw e;
+      // drive.file: trang chưa có quyền với file này → người dùng chọn file một lần trong Picker
+      busy(); toast(T('drivePick'));
+      const picked = await pickPdf(lang, nameHint || '');
+      if (!picked) return;
+      busy(T('driveLoading')); got = await loadFile(picked.id);
+    }
+    busy();
+    $('driveCall').hidden = true;
+    await openBytes(got.bytes, got.meta.name, { id: got.meta.id, parents: got.meta.parents || [], link: got.meta.webViewLink });
+  } catch (e) { driveError(e); }
+}
+$('fromDrive').addEventListener('click', async () => {
+  if (S.dirty && !confirm(T('leave'))) return;
+  try { const picked = await pickPdf(lang); if (picked) await openDriveFile(picked.id, picked.name); } catch (e) { driveError(e); }
+});
+$('saveDrive').addEventListener('click', async () => {
+  if (!S.drive) return;
+  closeEditor(false);
+  busy(T('driveSaving'));
+  try {
+    const { bytes } = await call('save');
+    const name = S.name.replace(/\.pdf$/i, '') + T('copySuffix') + '.pdf';
+    const f = await saveCopy(bytes, name, S.drive.parents);
+    S.dirty = false;
+    busy(); toast(T('driveSaved', { n: f.name || name }), '', '', f.webViewLink ? { href: f.webViewLink, label: T('driveOpen') } : null);
+  } catch (e) { driveError(e); }
+});
+{
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id'), nm = q.get('name') || '';
+  $('fromDrive').hidden = !driveEnabled();
+  if (id && /^[\w-]{10,}$/.test(id)) {
+    $('driveCall').hidden = false;
+    if (!driveEnabled()) { $('driveCallMsg').textContent = T('driveOff'); $('driveCallBtn').hidden = true; }
+    else {
+      $('driveCallMsg').textContent = nm ? T('driveCallNamed', { n: nm }) : T('driveCall');
+      $('driveCallBtn').addEventListener('click', () => openDriveFile(id, nm));
+    }
+  }
+}
+
 // nạp sẵn bộ máy khi trình duyệt rảnh để lần mở đầu nhanh hơn
 (window.requestIdleCallback || setTimeout)(() => startWorker().catch(() => {}));
 
