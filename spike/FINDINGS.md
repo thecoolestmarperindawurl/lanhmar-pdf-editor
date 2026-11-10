@@ -1,4 +1,4 @@
-# Nhận định sau hai lượt thử (10/11/2026)
+# Nhận định sau ba lượt thử (10/11/2026)
 
 ## Dữ liệu thử
 
@@ -6,19 +6,22 @@
 |---|---|---|---|
 | Tổng hợp | Chromium xuất từ HTML: Times, Arial + bảng, Calibri hai cột, phông lạ, slide Inter, bản scan | 6 | 11 |
 | **Thật** | 5 bài giảng quản lý dự án, **Notion xuất PDF** (Headless Chrome 128), 12–21 trang, 3,7–9 MB | 5 | 14 |
+| **Thật** | Thư mời, **Microsoft Word 2021** (Times New Roman thường/đậm/nghiêng) | 1 | 5 |
+| **Thật** | CV 3 trang, **Canva** (Arial thường/đậm/nghiêng, nhiều màu) | 1 | 7 |
 
-Bộ thật không đưa lên repo (tài liệu khoá học). Báo cáo của bộ thật nằm ở `spike/report-real/` trên máy chạy thử, không commit. Bảng và ảnh của bộ tổng hợp: [`report/REPORT.md`](report/REPORT.md).
+Bộ thật không đưa lên repo (tài liệu khoá học, thông tin cá nhân). Báo cáo của bộ thật nằm ở `spike/report-real/` trên máy chạy thử, không commit. Bảng và ảnh của bộ tổng hợp: [`report/REPORT.md`](report/REPORT.md).
 
 ## Kết quả đo được
 
 | Chỉ số | Tổng hợp | Thật |
 |---|---|---|
-| Ca đạt đủ 6 tiêu chí tự động | 10/11 | **14/14** |
+| Ca đạt đủ 6 tiêu chí tự động | 10/11 | **26/26** (Notion 14/14 · Word 5/5 · Canva 7/7) |
 | Điểm ảnh đổi ngoài vùng sửa | 0 ở mọi ca | 0 ở mọi ca |
-| Chữ mới đọc được bằng MuPDF và pdf.js | 10/10 | 14/14 |
+| Chữ mới đọc được bằng MuPDF và pdf.js | 10/10 | 26/26 |
 | Chữ cũ còn sót trong lớp chữ | 0 | 0 |
-| Ca phải co ngang chữ | 3 (87–99%) | 0 |
-| Trích chữ tiếng Việt đúng dấu từ file gốc | 5/6 file (trừ bản scan) | 5/5 file |
+| Ca phải co ngang chữ | 3 (87–99%) | 1 (91%, dòng nghiêng gần đầy) |
+| Trích chữ tiếng Việt đúng dấu từ file gốc | 5/6 file (trừ bản scan) | 7/7 file |
+| Cách chọn phông (bộ thật, theo đoạn chữ) | | nhận dạng 13 · cùng họ 7 · dùng lại phông gốc 5 · mượn 2 |
 | Dung lượng lõi WASM khi tải trên web | 10,4 MB gốc · 4,7 MB gzip · 3,6 MB brotli | |
 
 Ca không đạt duy nhất là bản scan, không có lớp chữ, đúng dự kiến.
@@ -35,6 +38,12 @@ Thêm: chốt **một họ phông cho cả trang** (gộp số đo mọi phông 
 
 Kết quả bằng mắt trên bộ thật: tiêu đề bìa 30pt, tiêu đề cấp 2–3, thân bài, chữ xám mục lục, dòng có emoji ✅, ngoặc kép cong, dòng trộn đậm/thường đều **không phân biệt được chỗ sửa**. Có cả một lỗi chính tả thật trong tài liệu được sửa: “TỔNG LẾT” → “TỔNG KẾT”.
 
+## Điều PDF của Word và Canva dạy thêm
+
+1. **Dấu cách thành U+00A0.** Khi dùng lại phông nhúng gốc, bảng ký tự của phông Word/Canva ánh xạ glyph dấu cách sang “dấu cách không ngắt dòng”. Nhìn đúng nhưng tìm kiếm và copy sai (2 ca trượt tiêu chí). → Tự ghi bảng ToUnicode cho mọi chữ được viết, theo đúng chữ người dùng gõ. Sau sửa: 26/26.
+2. **Dòng căn giữa / căn phải bị lệch khi chữ đổi độ dài** (tiêu đề “THƯ MỜI” → “THƯ MỜI THAM DỰ” lệch 39 điểm). → Nhận biết kiểu căn của dòng; với dòng căn giữa/phải thì viết lại cả dòng và đặt lại vị trí. Sau sửa: lệch tâm 0, lệch mép phải 0.
+3. Phông có tên (Times New Roman, Arial) đi nhánh “dùng lại phông gốc” khi đủ ký tự, nếu thiếu dấu thì sang Liberation đo bằng: bằng mắt không phân biệt được, kể cả chữ nghiêng, chữ màu, tên người có dấu mới (“Nguyễn Minh Thư”).
+
 ## Hạn chế còn lại (thứ tự ưu tiên)
 
 1. **Trang trí vẽ rời khỏi chữ** (gạch chân link mục lục Notion, gạch ngang, nền tô): không đổi theo độ dài chữ mới. Thấy ở ca rút ngắn mục lục: gạch chân dài hơn chữ. Cần nhận diện nét ngang ngay dưới chữ và co/giãn theo.
@@ -43,10 +52,10 @@ Kết quả bằng mắt trên bộ thật: tiêu đề bìa 30pt, tiêu đề c
 4. **Chỉ sửa trong một dòng**; cụm vắt hai dòng chưa hỗ trợ.
 5. **Bản scan** cần OCR (chưa làm; ứng viên miễn phí: Tesseract.js, cần kiểm chứng với tiếng Việt).
 6. **Chữ nghiêng** của phông Type3 chưa nhận dạng được (đang mặc định chữ đứng).
-7. **Độ phủ nguồn**: mới có PDF từ Chromium (Notion, HTML). Word, InDesign, Canva thật vẫn chưa thử.
+7. **Độ phủ nguồn**: đã có Chromium (Notion, HTML), Word, Canva. Chưa thử InDesign, Google Docs thật, PDF có phông Type1 kiểu cũ, file nhiều cột phức tạp.
 
 ## Kết luận và đề xuất (ý kiến)
 
-MuPDF.js đạt mục tiêu chất lượng của mức 3 trên cả hai bộ: sửa một dòng không lộ đường sửa, không xê dịch gì xung quanh, file vẫn tìm/copy được. Đủ cơ sở để bắt đầu xây ứng dụng, song song bổ sung mẫu Word/Canva.
+MuPDF.js đạt mục tiêu chất lượng của mức 3 trên ba nguồn phổ biến (Notion, Word, Canva): sửa một dòng không lộ đường sửa, không xê dịch gì xung quanh, file vẫn tìm/copy được. Đủ cơ sở để bắt đầu xây ứng dụng.
 
 Thứ tự đề xuất: (1) giao diện bấm-vào-dòng-để-sửa dùng lõi hiện tại; (2) xử lý gạch chân/gạch ngang; (3) dàn lại đoạn; (4) thứ tự đọc; (5) tích hợp Google Drive; (6) OCR.

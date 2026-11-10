@@ -25,6 +25,8 @@ PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường ch
 - Tiêu chí tự động chưa đủ: luôn xem ảnh trước/sau (từng có ca "đạt" nhưng mất in đậm, mất SemiBold, in đậm cả dòng trộn).
 - Độ rộng ký tự phân biệt được họ phông nhưng **không** phân biệt được độ đậm của Inter; dùng lượng mực.
 - Lượng mực phải tự xác định nền là điểm khác màu chữ nhất (chữ sáng trên nền tối thì nền là điểm tối nhất).
+- Luôn tự ghi ToUnicode cho chữ được viết: cmap phông nhúng của Word/Canva ánh xạ dấu cách sang U+00A0, làm tìm/copy sai.
+- Dòng căn giữa/căn phải: viết lại cả dòng và đặt lại vị trí (`alignmentOf`); dòng chạm lề trái luôn là căn trái.
 - Notion xuất PDF qua Headless Chrome: gần như toàn bộ là Type3, tiêu đề Inter SemiBold, tiêu đề bìa Inter Bold; gạch chân link mục lục là nét vẽ rời.
 
 ## Bước 1: thử nghiệm chất lượng (làm trước, chưa xây giao diện thật)
@@ -33,7 +35,7 @@ Bộ mẫu ~10 PDF tiếng Việt thật: xuất từ Word, Google Docs, Canva, 
 2. Sửa một câu: phông khớp, không lộ đường sửa.
 3. Bố cục quanh chỗ sửa giữ nguyên.
 4. File kết quả mở đúng trong Chrome, Acrobat Reader, và extract lại thấy chữ mới, không còn chữ cũ.
-Trạng thái 10/11/2026: mẫu tổng hợp 10/11 ca đạt (ca còn lại là bản scan, cần OCR); **bộ thật 5 bài giảng Notion: 14/14 ca đạt, ảnh không lộ đường sửa**. Chi tiết `spike/FINDINGS.md`. Bộ thật tải từ thư mục Drive của chủ dự án (id `10OS1QAeY3LMDaGPnjzDOiYmUIkbdbvwh`) qua `drive.usercontent.google.com` vào `spike/samples/real/` (không commit); còn thiếu mẫu Word/InDesign/Canva.
+Trạng thái 10/11/2026: mẫu tổng hợp 10/11 ca đạt (ca còn lại là bản scan, cần OCR); **bộ thật 7 file (5 bài giảng Notion, thư mời Word 2021, CV Canva): 26/26 ca đạt, ảnh không lộ đường sửa**. Chi tiết `spike/FINDINGS.md`. Bộ thật tải từ thư mục Drive của chủ dự án (id `10OS1QAeY3LMDaGPnjzDOiYmUIkbdbvwh`) qua `drive.usercontent.google.com` vào `spike/samples/real/` (không commit); thư mời và CV do chủ dự án gửi trực tiếp (có thông tin cá nhân, tuyệt đối không commit); còn thiếu mẫu InDesign/Google Docs.
 **Đã đạt → bước tiếp theo là xây giao diện bấm-vào-dòng-để-sửa** (thứ tự ưu tiên trong `spike/FINDINGS.md`). Không đạt → báo bằng số liệu, lùi về phương án chú thích + thao tác trang (PDF.js editor + pdf-lib).
 
 ## Tích hợp với hệ LANHMAR (đã có sẵn, dùng lại)
