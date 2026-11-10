@@ -58,6 +58,21 @@ Kết quả bằng mắt trên bộ thật: tiêu đề bìa 30pt, tiêu đề c
 | Hợp đồng phông lạ (căn trái) | co 87% | dàn lại, vẫn căn trái |
 | CV Canva, dòng nghiêng | co 91% | dàn lại 2 dòng |
 
+## Kiểm thử diện rộng (fuzz) và lỗi tìm ra (10/11/2026)
+
+Lỗi người dùng báo ("Cannot read properties of undefined (reading 'font')" khi sửa thư mời) dẫn tới hai bộ thử mới: sửa **mọi dòng** theo 5 kiểu (`spike/fuzz.mjs`) và **sửa liên tiếp** nhiều dòng trên cùng tài liệu (`spike/multi.mjs`). Chúng tìm ra 6 lỗi, đã sửa hết:
+
+| Lỗi | Hậu quả | Sửa |
+|---|---|---|
+| Đo dấu cách dòng phía trên đoạn bằng phông chưa chọn | Ngoại lệ khi sửa đoạn căn đều (lỗi người dùng gặp) | Đo bằng phông gốc khi kiểu đó không được viết lại |
+| Rò bộ nhớ WASM (trang chữ, ảnh, tài liệu tạm, chú thích, một Font mỗi ký tự) | Bộ nhớ tăng ~4 MB mỗi lần đọc/sửa; bộ thử cạn bộ nhớ | Huỷ chủ động, gom Font theo con trỏ |
+| Redaction xoá oan ký tự kề (khung glyph Type3 rộng) | "study:" thành "stud:" | Vẽ lại ký tự mất oan |
+| `addFont` dùng chung đối tượng PDF, ToUnicode bị ghi đè | Sửa dòng thứ hai làm dòng trước thành ký tự rác khi copy (21/76 dòng khi tắt bản sửa) | Gộp ToUnicode theo đối tượng PDF |
+| Chữ mới chạy sát cột bên (khe 4 pt) | Dính với cột/ô bên thành một dòng | Khe ≥ 0,8 cỡ chữ |
+| Giá trị trong bảng thuộc tính bị coi là căn giữa | Bị dời đè lên nhãn | Có chữ cùng hàng → căn trái |
+
+Kết quả cuối: thật **1.390 lần sửa, 0 lỗi, 0 mất chữ** (59 lần chữ quá dài cho chỗ trống, đều có cảnh báo tràn); tổng hợp 215 lần, 0 lỗi; sửa liên tiếp 100 lần, 0 dòng hỏng; bộ chất lượng giữ 16/17 và 26/26.
+
 ## Hạn chế còn lại (thứ tự ưu tiên)
 
 1. **Nền tô sau chữ** (highlight, nhãn màu) chưa co giãn theo chữ mới; gạch chân/gạch ngang thì đã xử lý. Khi dòng có gạch chân thì chưa dàn lại đoạn (giữ cách một dòng).

@@ -120,7 +120,7 @@ let workerReady = null;
 function startWorker() {
   if (workerReady) return workerReady;
   workerReady = new Promise((resolve, reject) => {
-    try { worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' }); } catch (e) { reject(e); return; }
+    try { worker = new Worker(new URL('./worker.js?v=7', import.meta.url), { type: 'module' }); } catch (e) { reject(e); return; }
     worker.onmessage = (ev) => {
       const m = ev.data;
       if (m.ready) { resolve(); return; }

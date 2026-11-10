@@ -1,7 +1,7 @@
 // Luồng nền: giữ tài liệu PDF và chạy MuPDF (WebAssembly) để giao diện không bị đứng.
 // Background thread: owns the PDF document and runs MuPDF (WebAssembly) so the UI never freezes.
 import * as mupdf from '../vendor/mupdf/mupdf.js';
-import { useMupdf, lineInfo, editLine } from '../src/edit.mjs';
+import { useMupdf, lineInfo, editLine } from '../src/edit.mjs?v=7';
 
 useMupdf(mupdf);
 
@@ -33,13 +33,15 @@ const handlers = {
     doc = pdf;
     const pages = [];
     for (let i = 0; i < doc.countPages(); i++) {
-      const b = doc.loadPage(i).getBounds();
+      const pg = doc.loadPage(i); const b = pg.getBounds(); pg.destroy();
       pages.push({ w: b[2] - b[0], h: b[3] - b[1] });
     }
     return { pages };
   },
   render(pi, scale) {
-    const pm = doc.loadPage(pi).toPixmap([scale, 0, 0, scale, 0, 0], mupdf.ColorSpace.DeviceRGB, true, true);
+    const pg = doc.loadPage(pi);
+    const pm = pg.toPixmap([scale, 0, 0, scale, 0, 0], mupdf.ColorSpace.DeviceRGB, true, true);
+    pg.destroy();
     const w = pm.getWidth(), h = pm.getHeight(), src = pm.getPixels(), stride = pm.getStride();
     const out = new Uint8ClampedArray(w * h * 4);
     for (let y = 0; y < h; y++) out.set(src.subarray(y * stride, y * stride + w * 4), y * w * 4);
@@ -47,7 +49,8 @@ const handlers = {
     return { w, h, data: out, $transfer: [out.buffer] };
   },
   lines(pi) {
-    return lineInfo(doc.loadPage(pi));
+    const pg = doc.loadPage(pi);
+    try { return lineInfo(pg); } finally { pg.destroy(); }
   },
   edit(pi, li, text) {
     doc.beginOperation('edit');
@@ -68,7 +71,7 @@ const handlers = {
     const copy = mupdf.Document.openDocument(raw, 'application/pdf').asPDF();
     try { copy.subsetFonts(); } catch { /* giữ nguyên phông nếu không cắt được */ }
     const out = copy.saveToBuffer('garbage=compact,compress=yes').asUint8Array().slice();
-    copy.destroy?.();
+    copy.destroy();
     return { bytes: out, $transfer: [out.buffer] };
   },
 };

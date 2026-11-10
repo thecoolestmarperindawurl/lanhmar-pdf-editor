@@ -1,6 +1,6 @@
 # Báo cáo thử chất lượng sửa chữ gốc (MuPDF.js 1.28.6)
 
-Sinh tự động bởi `node spike/run.mjs` lúc 2026-11-10 07:44 UTC. Bộ mẫu: PDF tiếng Việt do Chromium xuất (phông nhúng dạng tập con như Word/Google Docs/Canva). Đây là **mẫu tổng hợp**: chứng minh cơ chế, chưa thay được bộ PDF thật.
+Sinh tự động bởi `node spike/run.mjs` lúc 2026-11-10 08:49 UTC. Bộ mẫu: PDF tiếng Việt do Chromium xuất (phông nhúng dạng tập con như Word/Google Docs/Canva). Đây là **mẫu tổng hợp**: chứng minh cơ chế, chưa thay được bộ PDF thật.
 
 **Kết quả: 16/17 ca đạt** đủ cả 6 tiêu chí.
 
@@ -15,7 +15,7 @@ Sinh tự động bởi `node spike/run.mjs` lúc 2026-11-10 07:44 UTC. Bộ m�
 | s2-gdocs-arial | c1 | “15 triệu” → “18 triệu” | ✅ | Dùng lại phông gốc (LiberationSans); gốc: LiberationSans | ✅ | ✅ / ✅ | không | 0 | ✅ Đạt |
 | s2-gdocs-arial | c2 | “Facebook” → “Facebook Ads” | ✅ | Phông cùng họ (LiberationSans-Regular); gốc: LiberationSans | ✅ | ✅ / ✅ | không | 0 | ✅ Đạt |
 | s2-gdocs-arial | c3 | “20.000 người” → “25.000 người” | ✅ | Dùng lại phông gốc (LiberationSans); gốc: LiberationSans | ✅ | ✅ / ✅ | 99% | 0 | ✅ Đạt |
-| s3-calibri-2col | c1 | “ba nguyên tắc” → “năm nguyên tắc cốt lõi” | ✅ | Phông cùng họ (Carlito-Regular); gốc: Carlito-Regular | ✅ | ✅ / ✅ | không | 0 | ✅ Đạt |
+| s3-calibri-2col | c1 | “ba nguyên tắc” → “năm nguyên tắc cốt lõi” | ✅ | Phông cùng họ (Carlito-Regular); gốc: Carlito-Regular | ✅ | ✅ / ✅ | dàn lại đoạn: 5→5 dòng | 0 | ✅ Đạt |
 | s4-unknown-serif | c1 | “hợp đồng này” → “phụ lục kỹ thuật này” | ✅ | Phông nhận dạng (độ rộng + lượng mực) (LiberationSerif-Regular, độ rộng lệch 2.4%, mực lệch 2.4%); gốc: FreeSerif | ✅ | ✅ / ✅ | dàn lại đoạn: 2→2 dòng | 0 | ✅ Đạt |
 | s5-slide-inter | c1 | “30%” → “45%” | ✅ | Phông mượn từ chữ kề (Inter-Regular); gốc: Type3 (13 0 R) | ✅ | ✅ / ✅ | không | 0 | ✅ Đạt |
 | s5-slide-inter | c2 | “2027” → “2028” | ✅ | Phông nhận dạng (độ rộng + lượng mực) (Inter-Bold, độ rộng lệch 0.8%, mực lệch 0%); gốc: Type3 (8 0 R) | ✅ | ✅ / ✅ | 97% | 0 | ✅ Đạt |

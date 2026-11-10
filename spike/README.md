@@ -9,6 +9,14 @@ npm run spike
 
 Kết quả: `report/REPORT.md` (bảng 6 tiêu chí + ảnh trước/sau), `report/results.json`, PDF đã sửa trong `out/` (không commit).
 
+## Kiểm thử diện rộng
+
+```bash
+npm run fuzz            # sửa mọi dòng của mẫu tổng hợp theo 5 kiểu
+npm run fuzz -- --real  # như trên với PDF thật
+npm run multi -- --real # sửa liên tiếp nhiều dòng, kiểm dòng sửa trước không hỏng
+```
+
 ## Sáu tiêu chí cho mỗi ca
 
 1. Đọc đúng chữ có dấu trong file gốc.
