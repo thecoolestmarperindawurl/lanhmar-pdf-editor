@@ -84,7 +84,7 @@ const I18N = {
     driveAuth: 'You are not signed in or did not allow Google Drive access.', copySuffix: ' (edited)',
   },
 };
-let lang = (() => { try { const l = localStorage.getItem('lm_lang'); if (l === 'vi' || l === 'en') return l; } catch { /* ignore */ } return (navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en'; })();
+let lang = (() => { const ql = new URLSearchParams(location.search).get('lang'); if (ql === 'vi' || ql === 'en') return ql; try { const l = localStorage.getItem('lm_lang'); if (l === 'vi' || l === 'en') return l; } catch { /* ignore */ } return (navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en'; })();
 const T = (k, vars) => String(I18N[lang][k] ?? k).replace(/\{(\w+)\}/g, (_, v) => (vars && vars[v] != null ? vars[v] : ''));
 function applyLang() {
   document.documentElement.lang = lang;
