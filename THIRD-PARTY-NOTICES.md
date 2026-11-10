@@ -2,7 +2,7 @@
 
 | Thành phần / Component | Phiên bản / Version | Giấy phép / License | Dùng ở / Used in |
 |---|---|---|---|
-| [MuPDF.js](https://www.npmjs.com/package/mupdf) (Artifex) | 1.28.6 | AGPL-3.0-or-later (hoặc thương mại / or commercial) | lõi đọc, xoá, ghi PDF |
+| [MuPDF.js](https://www.npmjs.com/package/mupdf) (Artifex) | 1.28.6 | AGPL-3.0-or-later (hoặc thương mại / or commercial) | lõi đọc, xoá, ghi PDF; bản trình duyệt chép nguyên vẹn trong `vendor/mupdf/` (kèm `LICENSE`) |
 | [PDF.js](https://github.com/mozilla/pdf.js) (pdfjs-dist) | 6.5.438 | Apache-2.0 | chỉ trong bộ thử, đọc kiểm tra độc lập / test suite only |
 | Liberation Serif, Liberation Sans | 2.x | SIL OFL 1.1 — `fonts/licenses/Liberation.txt` | phông dự phòng (đo bằng Times New Roman, Arial) |
 | Carlito | — | SIL OFL 1.1 — `fonts/licenses/Carlito.txt` | phông dự phòng (đo bằng Calibri) |

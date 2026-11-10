@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LANHMAR PDF Editor – Sửa chữ trong PDF miễn phí</title>
+<meta name="description" content="Bấm vào dòng chữ bất kỳ trong PDF và sửa trực tiếp, giữ phông và bố cục. Miễn phí, chạy trong trình duyệt, file không rời máy bạn.">
+<meta property="og:title" content="LANHMAR PDF Editor">
+<meta property="og:description" content="Sửa chữ trong PDF như sửa văn bản. Miễn phí, file không rời máy bạn.">
+<link rel="icon" href="app/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app/app.css?v=3">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="./" aria-label="LANHMAR PDF Editor">
+    <img src="app/icon.svg" alt="" width="30" height="30">
+    <span><b>PDF Editor</b><small>by LANHMAR</small></span>
+  </a>
+  <div class="tools" id="tools" hidden>
+    <span class="fname" id="fname"></span>
+    <button class="ib" id="undo" disabled data-i-title="undo">↶</button>
+    <button class="ib" id="redo" disabled data-i-title="redo">↷</button>
+    <span class="sep"></span>
+    <button class="ib" id="zoomOut" data-i-title="zoomOut">−</button>
+    <span class="zoom" id="zoomLabel">100%</span>
+    <button class="ib" id="zoomIn" data-i-title="zoomIn">+</button>
+    <span class="sep"></span>
+    <label class="btn ghost sm" for="fileIn" data-i="openOther"></label>
+    <button class="btn sm" id="download" data-i="download"></button>
+  </div>
+  <div class="lang"><button type="button" data-lang="vi">VI</button><button type="button" data-lang="en">EN</button></div>
+</header>
+
+<main id="main">
+  <section class="home" id="home">
+    <div class="hero">
+      <p class="kicker" data-i="kicker"></p>
+      <h1 data-ih="h1"></h1>
+      <p class="lead" data-i="lead"></p>
+      <div class="drop" id="drop">
+        <div class="drop-ico" aria-hidden="true">⬆</div>
+        <p data-i="drop"></p>
+        <div class="row">
+          <label class="btn" for="fileIn" data-i="choose"></label>
+          <button class="btn ghost" id="demo" data-i="demo"></button>
+        </div>
+        <p class="tiny" data-i="privacy"></p>
+      </div>
+      <ul class="feats">
+        <li><b data-i="f1h"></b><span data-i="f1"></span></li>
+        <li><b data-i="f2h"></b><span data-i="f2"></span></li>
+        <li><b data-i="f3h"></b><span data-i="f3"></span></li>
+      </ul>
+      <details class="limits">
+        <summary data-i="limH"></summary>
+        <ul>
+          <li data-i="lim1"></li>
+          <li data-i="lim2"></li>
+          <li data-i="lim3"></li>
+          <li data-i="lim4"></li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <section class="viewer" id="viewer" hidden>
+    <p class="hint" data-i="hint"></p>
+    <div class="pages" id="pages"></div>
+  </section>
+</main>
+
+<div class="editor" id="editor" hidden>
+  <textarea id="editIn" rows="1" autocomplete="off" spellcheck="false"></textarea>
+  <div class="ebar">
+    <button class="btn sm" id="editSave" data-i="save"></button>
+    <button class="btn ghost sm" id="editCancel" data-i="cancel"></button>
+    <span class="ehint" data-i="ehint"></span>
+  </div>
+</div>
+
+<div class="busy" id="busy" hidden><div class="spin"></div><p id="busyMsg"></p></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<input id="fileIn" type="file" accept="application/pdf,.pdf" hidden>
+
+<footer class="foot">
+  <span data-i="foot"></span>
+  · <a href="https://github.com/thecoolestmarperindawurl/lanhmar-pdf-editor" target="_blank" rel="noopener" data-i="source"></a>
+  · <a href="https://lanhmar.id.vn" target="_blank" rel="noopener">lanhmar.id.vn</a>
+</footer>
+
+<script type="module" src="app/app.js?v=2"></script>
+</body>
+</html>
