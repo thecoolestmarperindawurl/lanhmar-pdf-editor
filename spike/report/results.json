@@ -18,7 +18,7 @@
     "fontName": "LiberationSerif",
     "fallback": "LiberationSerif",
     "match": null,
-    "runs": 1,
+    "runs": 45,
     "size": 12,
     "width": 438.9,
     "oldWidth": 456.8,
@@ -29,8 +29,8 @@
     "region": [
       69.75,
       110.056640625,
-      526.5038452148438,
-      123.345703125
+      526.5096435546875,
+      159.345703125
     ],
     "lineBox": [
       69.75,
@@ -40,10 +40,18 @@
     ],
     "centerShift": -8.9,
     "rightShift": -17.8,
+    "decorations": null,
+    "reflow": {
+      "lines": 3,
+      "was": 3,
+      "added": false,
+      "justified": true
+    },
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -65,19 +73,19 @@
     "fontName": "LiberationSerif",
     "fallback": "LiberationSerif-Regular",
     "match": null,
-    "runs": 1,
+    "runs": 26,
     "size": 12,
-    "width": 347.2,
-    "oldWidth": 311.6,
-    "avail": 311.6,
-    "tz": 89,
+    "width": 491.1,
+    "oldWidth": 456.8,
+    "avail": 456.8,
+    "tz": 100,
     "overflow": false,
     "align": "left",
     "region": [
-      214.8694610595703,
+      69.75,
       128.056640625,
-      526.5096435546875,
-      141.345703125
+      560.80078125,
+      159.345703125
     ],
     "lineBox": [
       69.75,
@@ -85,12 +93,20 @@
       526.5096435546875,
       141.345703125
     ],
-    "centerShift": -1.3,
-    "rightShift": -2.6,
+    "centerShift": 17.1,
+    "rightShift": 34.3,
+    "decorations": null,
+    "reflow": {
+      "lines": 2,
+      "was": 2,
+      "added": false,
+      "justified": true
+    },
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -121,9 +137,9 @@
     "overflow": false,
     "align": "center",
     "region": [
-      141.46811267089845,
+      141.46322178235278,
       71.99441528320312,
-      454.7609217529297,
+      454.76581264147535,
       89.71039581298828
     ],
     "lineBox": [
@@ -134,10 +150,173 @@
     ],
     "centerShift": 0,
     "rightShift": 0.2,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
+    "pass": true
+  },
+  {
+    "sample": "s1-word-times",
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "id": "c4",
+    "page": 1,
+    "find": "Đội ngũ bán hàng đã mở thêm",
+    "replace": "Đội ngũ đã mở",
+    "note": "Rút gọn trong đoạn căn đều: kéo chữ dòng dưới lên",
+    "extractOk": true,
+    "missing": [],
+    "chars": 284,
+    "status": "ok",
+    "strategy": "A-original",
+    "fonts": [
+      "LiberationSerif (A-original)"
+    ],
+    "fontName": "LiberationSerif",
+    "fallback": "LiberationSerif",
+    "match": null,
+    "runs": 29,
+    "size": 12,
+    "width": 369.1,
+    "oldWidth": 456.8,
+    "avail": 456.8,
+    "tz": 100,
+    "overflow": false,
+    "align": "left",
+    "region": [
+      69.75,
+      176.056640625,
+      526.5096435546875,
+      207.345703125
+    ],
+    "lineBox": [
+      69.75,
+      176.056640625,
+      526.5018310546875,
+      189.345703125
+    ],
+    "centerShift": -43.8,
+    "rightShift": -87.7,
+    "decorations": null,
+    "reflow": {
+      "lines": 2,
+      "was": 2,
+      "added": false,
+      "justified": true
+    },
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "expectOverflow": false,
+    "pass": true
+  },
+  {
+    "sample": "s1-word-times",
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "id": "c5",
+    "page": 1,
+    "find": "cao nhất từ trước đến nay.",
+    "replace": "cao nhất từ trước đến nay nhờ chương trình chăm sóc khách hàng thân thiết mới.",
+    "note": "Dòng cuối đoạn dài ra, bên dưới còn trống: thêm một dòng",
+    "extractOk": true,
+    "missing": [],
+    "chars": 284,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSerif-Regular (B-same-family)"
+    ],
+    "fontName": "LiberationSerif",
+    "fallback": "LiberationSerif-Regular",
+    "match": null,
+    "runs": 21,
+    "size": 12,
+    "width": 483.9,
+    "oldWidth": 221,
+    "avail": 456.8,
+    "tz": 100,
+    "overflow": false,
+    "align": "left",
+    "region": [
+      69.75,
+      194.056640625,
+      553.681640625,
+      228.75
+    ],
+    "lineBox": [
+      69.75,
+      194.056640625,
+      290.75390625,
+      207.345703125
+    ],
+    "centerShift": 131.5,
+    "rightShift": 262.9,
+    "decorations": null,
+    "reflow": {
+      "lines": 2,
+      "was": 1,
+      "added": true,
+      "justified": true
+    },
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "expectOverflow": false,
+    "pass": true
+  },
+  {
+    "sample": "s1-word-times",
+    "label": "Báo cáo kiểu Word, phông Times (Liberation Serif), căn đều hai bên",
+    "id": "c6",
+    "page": 1,
+    "find": "giảm nhẹ so với quý 2.",
+    "replace": "giảm nhẹ so với quý 2 nhờ tối ưu giá thầu quảng cáo và tập trung vào nhóm khách hàng cũ có tỉ lệ chuyển đổi cao.",
+    "note": "Dòng cuối đoạn dài ra nhưng đoạn sau chặn ngay dưới: không thêm dòng",
+    "extractOk": true,
+    "missing": [],
+    "chars": 284,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSerif-Regular (B-same-family)"
+    ],
+    "fontName": "LiberationSerif",
+    "fallback": "LiberationSerif-Regular",
+    "match": null,
+    "runs": 1,
+    "size": 12,
+    "width": 550.1,
+    "oldWidth": 109.7,
+    "avail": 456.8,
+    "tz": 85,
+    "overflow": true,
+    "align": "left",
+    "region": [
+      69.75,
+      146.056640625,
+      537.30146484375,
+      159.345703125
+    ],
+    "lineBox": [
+      69.75,
+      146.056640625,
+      179.4300079345703,
+      159.345703125
+    ],
+    "centerShift": 178.9,
+    "rightShift": 357.9,
+    "decorations": null,
+    "reflow": null,
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "expectOverflow": true,
     "pass": true
   },
   {
@@ -170,7 +349,7 @@
     "region": [
       213.75,
       152.04652404785156,
-      250.42326416015624,
+      250.42326377844438,
       164.3300018310547
     ],
     "lineBox": [
@@ -181,10 +360,13 @@
     ],
     "centerShift": 0,
     "rightShift": 0,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -217,7 +399,7 @@
     "region": [
       69,
       152.04652404785156,
-      139.286396484375,
+      139.2863957528025,
       164.3300018310547
     ],
     "lineBox": [
@@ -228,10 +410,13 @@
     ],
     "centerShift": 11,
     "rightShift": 22,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -262,7 +447,7 @@
     "overflow": false,
     "align": "left",
     "region": [
-      276.15814208984375,
+      56.25,
       89.79651641845703,
       505.10205078125,
       102.07999420166016
@@ -275,10 +460,13 @@
     ],
     "centerShift": -1.1,
     "rightShift": -2.2,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -311,7 +499,7 @@
     "region": [
       56.25,
       96.0311279296875,
-      304.5716455078125,
+      304.57164292316884,
       109.4527587890625
     ],
     "lineBox": [
@@ -322,10 +510,13 @@
     ],
     "centerShift": 19.5,
     "rightShift": 39.1,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -351,19 +542,19 @@
       "perChar": 2.4,
       "ink": 2.4
     },
-    "runs": 1,
+    "runs": 22,
     "size": 13,
     "width": 321.8,
     "oldWidth": 281.9,
     "avail": 281.9,
-    "tz": 87,
+    "tz": 100,
     "overflow": false,
     "align": "left",
     "region": [
-      237.76242065429688,
+      69.75,
       85.60199737548828,
-      519.6986083984375,
-      98.59950256347656
+      559.577461142093,
+      118.09950256347656
     ],
     "lineBox": [
       69.75,
@@ -371,12 +562,20 @@
       519.6986083984375,
       98.59950256347656
     ],
-    "centerShift": -1,
-    "rightShift": -2,
+    "centerShift": 19.9,
+    "rightShift": 39.9,
+    "decorations": null,
+    "reflow": {
+      "lines": 2,
+      "was": 2,
+      "added": false,
+      "justified": false
+    },
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -409,7 +608,7 @@
     "overflow": false,
     "align": "left",
     "region": [
-      160.716796875,
+      90,
       149.06982421875,
       487.60400390625,
       179.8271484375
@@ -422,10 +621,13 @@
     ],
     "centerShift": 0.8,
     "rightShift": 1.7,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -460,7 +662,7 @@
     "overflow": false,
     "align": "left",
     "region": [
-      534.65625,
+      60,
       62.15625,
       655.3801879882812,
       117.140625
@@ -473,10 +675,13 @@
     ],
     "centerShift": -0.2,
     "rightShift": -0.4,
+    "decorations": null,
+    "reflow": null,
     "oldRemoved": true,
     "newMupdf": true,
     "newPdfjs": true,
     "outsidePixels": 0,
+    "expectOverflow": false,
     "pass": true
   },
   {
@@ -494,6 +699,172 @@
     "chars": 0,
     "status": "not-found",
     "reason": "not-on-one-line",
+    "expectOverflow": false,
     "pass": false
+  },
+  {
+    "sample": "s7-decorations",
+    "label": "Trang trí chữ: tiêu đề căn giữa gạch chân, link gạch chân, giá gạch ngang (Liberation Sans)",
+    "id": "c1",
+    "page": 1,
+    "find": "trang lớp học trực tuyến",
+    "replace": "trang lớp học",
+    "note": "Link gạch chân, chữ ngắn hơn: gạch chân phải ngắn theo",
+    "extractOk": true,
+    "missing": [],
+    "chars": 116,
+    "status": "ok",
+    "strategy": "A-original",
+    "fonts": [
+      "LiberationSans (A-original)"
+    ],
+    "fontName": "LiberationSans",
+    "fallback": "LiberationSans",
+    "match": null,
+    "runs": 2,
+    "size": 12,
+    "width": 155.9,
+    "oldWidth": 213.2,
+    "avail": 308.1,
+    "tz": 100,
+    "overflow": false,
+    "align": "left",
+    "region": [
+      69.75,
+      109.88671875,
+      365.02197265625,
+      123.29296875
+    ],
+    "lineBox": [
+      69.75,
+      109.88671875,
+      365.02197265625,
+      123.29296875
+    ],
+    "centerShift": -28.7,
+    "rightShift": -57.4,
+    "decorations": {
+      "found": [
+        "underline"
+      ],
+      "redrawn": 1
+    },
+    "reflow": null,
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "expectOverflow": false,
+    "pass": true
+  },
+  {
+    "sample": "s7-decorations",
+    "label": "Trang trí chữ: tiêu đề căn giữa gạch chân, link gạch chân, giá gạch ngang (Liberation Sans)",
+    "id": "c2",
+    "page": 1,
+    "find": "1.500.000 đồng",
+    "replace": "2.000.000 đồng",
+    "note": "Chữ gạch ngang màu đỏ",
+    "extractOk": true,
+    "missing": [],
+    "chars": 116,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSans-Regular (B-same-family)"
+    ],
+    "fontName": "LiberationSans",
+    "fallback": "LiberationSans-Regular",
+    "match": null,
+    "runs": 2,
+    "size": 12,
+    "width": 352.1,
+    "oldWidth": 352.1,
+    "avail": 352.1,
+    "tz": 99,
+    "overflow": false,
+    "align": "left",
+    "region": [
+      69.75,
+      141.38671875,
+      459.87158203125,
+      154.79296875
+    ],
+    "lineBox": [
+      69.75,
+      141.38671875,
+      459.87158203125,
+      154.79296875
+    ],
+    "centerShift": -1.8,
+    "rightShift": -3.5,
+    "decorations": {
+      "found": [
+        "strike"
+      ],
+      "redrawn": 1
+    },
+    "reflow": null,
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "expectOverflow": false,
+    "pass": true
+  },
+  {
+    "sample": "s7-decorations",
+    "label": "Trang trí chữ: tiêu đề căn giữa gạch chân, link gạch chân, giá gạch ngang (Liberation Sans)",
+    "id": "c3",
+    "page": 1,
+    "find": "Thông báo lịch học",
+    "replace": "Thông báo lịch học tháng 12",
+    "note": "Tiêu đề căn giữa có gạch chân, chữ dài hơn",
+    "extractOk": true,
+    "missing": [],
+    "chars": 116,
+    "status": "ok",
+    "strategy": "B-same-family",
+    "fonts": [
+      "LiberationSans-Bold (B-same-family)"
+    ],
+    "fontName": "LiberationSans-Bold",
+    "fallback": "LiberationSans-Bold",
+    "match": null,
+    "runs": 1,
+    "size": 16,
+    "width": 216.9,
+    "oldWidth": 146.6,
+    "avail": 323.5,
+    "tz": 100,
+    "overflow": false,
+    "align": "center",
+    "region": [
+      189.69361445959657,
+      73.26789093017578,
+      406.5503430599347,
+      91.14009857177734
+    ],
+    "lineBox": [
+      224.8125,
+      73.26789093017578,
+      371.43145751953125,
+      91.14009857177734
+    ],
+    "centerShift": 0,
+    "rightShift": 35.1,
+    "decorations": {
+      "found": [
+        "underline"
+      ],
+      "redrawn": 1
+    },
+    "reflow": null,
+    "oldRemoved": true,
+    "newMupdf": true,
+    "newPdfjs": true,
+    "outsidePixels": 0,
+    "expectOverflow": false,
+    "pass": true
   }
 ]

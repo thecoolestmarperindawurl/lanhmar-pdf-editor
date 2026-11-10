@@ -56,11 +56,22 @@ const S = {
     body: `<div class="s"><h1>Chiến lược nội dung 2027</h1><ul><li>Tăng 30% lượt xem video ngắn</li><li>Mỗi tuần hai bài phân tích chuyên sâu</li></ul></div>`,
     page: { width: '1280px', height: '720px' }, margin: '0',
   },
+  's7-decorations': {
+    font: ff('Doc', `${FONTS}/LiberationSans-Regular.ttf`) + ff('Doc', `${FONTS}/LiberationSans-Bold.ttf`, 700),
+    css: 'body{font-family:Doc;font-size:12pt;line-height:1.6;margin:0} h2{text-align:center;text-decoration:underline;font-size:16pt;margin:0 0 12pt} a{color:#2D2FEF} .old{text-decoration:line-through;color:#b42318}',
+    body: `<h2>Thông báo lịch học</h2>
+<p>Xem chi tiết tại <a href="https://lanhmar.id.vn">trang lớp học trực tuyến</a> trước buổi đầu.</p>
+<p>Giá cũ <span class="old">1.500.000 đồng</span> nay còn 990.000 đồng cho học viên đăng ký sớm.</p>`,
+    margin: '2.5cm',
+  },
 };
+// node spike/make-samples.mjs s7-decorations → chỉ sinh lại các mẫu được nêu tên
+const ONLY = process.argv.slice(2);
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 for (const [id, s] of Object.entries(S)) {
+  if (ONLY.length && !ONLY.includes(id)) continue;
   const html = `<!doctype html><meta charset="utf-8"><style>${s.font}${s.css}</style>${s.body}`;
   const f = path.join(TMP, id + '.html'); fs.writeFileSync(f, html);
   await page.goto('file://' + f); await page.evaluate(() => document.fonts.ready);
@@ -69,7 +80,7 @@ for (const [id, s] of Object.entries(S)) {
   console.log('✓', id);
 }
 // s6: bản scan (chỉ có ảnh, không có lớp chữ) dựng từ ảnh chụp mẫu s1
-{
+if (!ONLY.length || ONLY.includes('s6-scan')) {
   const f = path.join(TMP, 's1-word-times.html');
   await page.setViewportSize({ width: 794, height: 1123 });
   await page.goto('file://' + f); await page.addStyleTag({ content: 'body{padding:94px}' });

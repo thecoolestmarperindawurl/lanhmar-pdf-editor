@@ -44,10 +44,24 @@ Kết quả bằng mắt trên bộ thật: tiêu đề bìa 30pt, tiêu đề c
 2. **Dòng căn giữa / căn phải bị lệch khi chữ đổi độ dài** (tiêu đề “THƯ MỜI” → “THƯ MỜI THAM DỰ” lệch 39 điểm). → Nhận biết kiểu căn của dòng; với dòng căn giữa/phải thì viết lại cả dòng và đặt lại vị trí. Sau sửa: lệch tâm 0, lệch mép phải 0.
 3. Phông có tên (Times New Roman, Arial) đi nhánh “dùng lại phông gốc” khi đủ ký tự, nếu thiếu dấu thì sang Liberation đo bằng: bằng mắt không phân biệt được, kể cả chữ nghiêng, chữ màu, tên người có dấu mới (“Nguyễn Minh Thư”).
 
+## Gạch chân, gạch ngang và dàn lại đoạn (10/11/2026)
+
+- **Gạch chân / gạch ngang vẽ rời** (link mục lục Notion, CSS `text-decoration`): tìm nét ngang mỏng ngay dưới chân chữ hoặc xuyên thân chữ, nằm trong phạm vi chữ (viền bảng dài hơn chữ bị loại); xoá bằng một lượt redaction chỉ bỏ nét vẽ, rồi vẽ lại đúng màu/độ dày theo độ dài chữ mới. Chỉ vẽ lại khi chắc chắn nét cũ đã mất (tránh gạch đôi). Mẫu `s7-decorations`: 3/3; ca mục lục Notion: gạch chân ngắn lại theo chữ.
+- **Dàn lại đoạn** (đoạn căn trái hoặc căn đều): chữ dài ra đẩy từ xuống các dòng sau của đoạn, chữ ngắn đi trong đoạn căn đều kéo từ lên; giữ căn đều (đo dấu cách giãn: căn trái 0,99–1,01, căn đều ≥ 1,07, ngưỡng 1,04) và viết lại cả dòng để khoảng cách từ đều; thêm tối đa một dòng khi ngay dưới đoạn còn trống ít nhất nửa khoảng dòng, nếu không thì quay về co ngang và báo tràn. Các ca trước đây phải co 87–91% nay giữ 100%.
+
+| Ca | Trước | Sau |
+|---|---|---|
+| Báo cáo căn đều, chữ dài hơn | co 89% | dàn lại 2 dòng, căn đều |
+| Báo cáo căn đều, rút gọn | dòng hụt giữa đoạn | kéo chữ dòng dưới lên |
+| Dòng cuối đoạn dài ra, dưới còn trống | co | thêm 1 dòng ở đúng lề trái |
+| Dòng cuối đoạn dài ra, đoạn sau chặn | co | co 85% và báo tràn (đúng dự kiến, không chèn dòng đè) |
+| Hợp đồng phông lạ (căn trái) | co 87% | dàn lại, vẫn căn trái |
+| CV Canva, dòng nghiêng | co 91% | dàn lại 2 dòng |
+
 ## Hạn chế còn lại (thứ tự ưu tiên)
 
-1. **Trang trí vẽ rời khỏi chữ** (gạch chân link mục lục Notion, gạch ngang, nền tô): không đổi theo độ dài chữ mới. Thấy ở ca rút ngắn mục lục: gạch chân dài hơn chữ. Cần nhận diện nét ngang ngay dưới chữ và co/giãn theo.
-2. **Chữ dài hơn trong đoạn căn đều bị co ngang** (87–89% ở bộ tổng hợp). Cần dàn lại cả đoạn.
+1. **Nền tô sau chữ** (highlight, nhãn màu) chưa co giãn theo chữ mới; gạch chân/gạch ngang thì đã xử lý. Khi dòng có gạch chân thì chưa dàn lại đoạn (giữ cách một dòng).
+2. **Dàn lại đoạn chỉ trong phạm vi đoạn** + tối đa một dòng thêm; không đẩy các đoạn phía dưới xuống.
 3. **Thứ tự đọc**: chữ mới ghi ở cuối luồng nội dung, copy cả trang thì cụm vừa sửa nằm cuối.
 4. **Chỉ sửa trong một dòng**; cụm vắt hai dòng chưa hỗ trợ.
 5. **Bản scan** cần OCR (chưa làm; ứng viên miễn phí: Tesseract.js, cần kiểm chứng với tiếng Việt).

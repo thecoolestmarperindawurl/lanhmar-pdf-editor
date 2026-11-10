@@ -87,8 +87,9 @@ for (const [sid, s] of Object.entries(cases)) {
         const doc2 = mupdf.Document.openDocument(buf, 'application/pdf');
         const textA = pageText(doc2.loadPage(pi));
         // không tính chỗ chữ cũ nằm bên trong chữ mới (vd. “Facebook” trong “Facebook Ads”)
-        r.oldRemoved = count(NFC(textA).split(NFC(c.replace)).join('\u0000'), c.find) === count(NFC(textP).split(NFC(c.replace)).join('\u0000'), c.find) - 1;
-        r.newMupdf = NFC(textA).includes(NFC(c.replace));
+        const mask = (t) => (NFC(c.replace).includes(NFC(c.find)) ? NFC(t).split(NFC(c.replace)).join('\u0000') : NFC(t));
+        r.oldRemoved = count(mask(textA), c.find) === count(mask(textP), c.find) - 1;
+        r.newMupdf = NFC(textA).replace(/\s+/g, ' ').includes(NFC(c.replace)); // chữ mới có thể vắt qua nhiều dòng khi dàn lại đoạn
         const tj = await pdfjsText(buf, pi + 1);
         r.newPdfjs = NFC(tj).replace(/\s+/g, ' ').includes(NFC(c.replace));
         const after = render(doc2, pi);
@@ -98,7 +99,9 @@ for (const [sid, s] of Object.entries(cases)) {
         crop(after, box, `${sid}-${c.id}-after.png`);
       }
     } catch (e) { r.status = 'error'; r.error = String(e && e.message || e); }
-    r.pass = r.status === 'ok' && r.extractOk && r.oldRemoved && r.newMupdf && r.newPdfjs && r.outsidePixels === 0 && !r.overflow;
+    // ca có "expectOverflow": kiểm rằng công cụ KHÔNG chèn dòng đè lên đoạn sau mà quay về co ngang và báo tràn
+    r.expectOverflow = !!c.expectOverflow;
+    r.pass = r.status === 'ok' && r.extractOk && r.oldRemoved && r.newMupdf && r.newPdfjs && r.outsidePixels === 0 && (c.expectOverflow ? r.overflow && !r.reflow : !r.overflow);
     results.push(r);
     console.log(`${r.pass ? 'ĐẠT ' : 'CHƯA'} ${sid}/${c.id} p${r.page} ${r.status} ${r.strategy || ''} tz=${r.tz ?? '-'} outside=${r.outsidePixels ?? '-'} ${r.error || r.reason || ''}`);
   }
@@ -113,12 +116,12 @@ let md = `# Báo cáo thử chất lượng sửa chữ gốc (MuPDF.js ${mupdfV
 md += `Sinh tự động bởi \`node spike/run.mjs\` lúc ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC. Bộ mẫu: PDF tiếng Việt do Chromium xuất (phông nhúng dạng tập con như Word/Google Docs/Canva). Đây là **mẫu tổng hợp**: chứng minh cơ chế, chưa thay được bộ PDF thật.\n\n`;
 const pass = results.filter((r) => r.pass).length;
 md += `**Kết quả: ${pass}/${results.length} ca đạt** đủ cả 6 tiêu chí.\n\n`;
-md += `| Mẫu | Ca | Sửa | Đọc chữ gốc đúng | Phông dùng | Chữ cũ bị xoá | Chữ mới đọc được (MuPDF / pdf.js) | Co ngang | Điểm ảnh đổi ngoài vùng sửa | Kết quả |\n|---|---|---|---|---|---|---|---|---|---|\n`;
+md += `| Mẫu | Ca | Sửa | Đọc chữ gốc đúng | Phông dùng | Chữ cũ bị xoá | Chữ mới đọc được (MuPDF / pdf.js) | Co ngang / dàn đoạn | Điểm ảnh đổi ngoài vùng sửa | Kết quả |\n|---|---|---|---|---|---|---|---|---|---|\n`;
 for (const r of results) {
   const fontCell = r.status === 'ok' ? `${STRAT[r.strategy]}${r.fallback ? ` (${r.fallback}${r.match && r.match.ink != null ? `, độ rộng lệch ${r.match.perChar}%, mực lệch ${r.match.ink}%` : ''})` : ''}; gốc: ${r.fontName}` : (r.status === 'not-found' ? 'không tìm thấy chữ' : r.status === 'no-font' ? `thiếu phông (${r.fontName})` : r.error || r.status);
-  md += `| ${r.sample} | ${r.id} | “${r.find}” → “${r.replace}” | ${yes(r.extractOk)} | ${fontCell} | ${r.status === 'ok' ? yes(r.oldRemoved) : '—'} | ${r.status === 'ok' ? `${yes(r.newMupdf)} / ${yes(r.newPdfjs)}` : '—'} | ${r.status === 'ok' ? (r.overflow ? `❌ tràn (cần ${Math.round(r.avail / r.width * 100)}%)` : r.tz === 100 ? 'không' : r.tz + '%') : '—'} | ${r.status === 'ok' ? r.outsidePixels : '—'} | ${r.pass ? '✅ Đạt' : '❌ Chưa'} |\n`;
+  md += `| ${r.sample} | ${r.id} | “${r.find}” → “${r.replace}” | ${yes(r.extractOk)} | ${fontCell} | ${r.status === 'ok' ? yes(r.oldRemoved) : '—'} | ${r.status === 'ok' ? `${yes(r.newMupdf)} / ${yes(r.newPdfjs)}` : '—'} | ${r.status === 'ok' ? (r.overflow ? `${r.expectOverflow ? '✅ báo tràn đúng dự kiến' : '❌ tràn'} (cần ${Math.round(r.avail / r.width * 100)}%)` : r.reflow ? `dàn lại đoạn: ${r.reflow.was}→${r.reflow.lines} dòng${r.reflow.added ? ', thêm 1 dòng' : ''}${r.reflow.justified ? ', căn đều' : ''}` : r.tz === 100 ? 'không' : r.tz + '%') : '—'} | ${r.status === 'ok' ? r.outsidePixels : '—'} | ${r.pass ? '✅ Đạt' : '❌ Chưa'} |\n`;
 }
-md += `\nTiêu chí đạt: đọc đúng chữ có dấu trong file gốc; chữ cũ bị xoá khỏi lớp chữ; chữ mới đọc được bằng cả MuPDF và pdf.js; không có điểm ảnh nào đổi ngoài vùng sửa (bố cục giữ nguyên); không tràn quá mức co ngang 85%. **Độ giống phông bằng mắt** cần người xem ảnh bên dưới.\n\n## Ảnh trước / sau\n\n`;
+md += `\nTiêu chí đạt: đọc đúng chữ có dấu trong file gốc; chữ cũ bị xoá khỏi lớp chữ; chữ mới đọc được bằng cả MuPDF và pdf.js; không có điểm ảnh nào đổi ngoài vùng sửa (bố cục giữ nguyên); không tràn quá mức co ngang 85% (chữ dài hơn trong đoạn căn trái được dàn lại đoạn trước khi phải co); ca ghi “báo tràn đúng dự kiến” kiểm rằng công cụ không chèn dòng đè lên đoạn sau. **Độ giống phông bằng mắt** cần người xem ảnh bên dưới.\n\n## Ảnh trước / sau\n\n`;
 for (const r of results) {
   md += `### ${r.sample} · ${r.id}${r.page > 1 ? ` (trang ${r.page})` : ''}: ${r.note}\n\n${r.label}. “${r.find}” → “${r.replace}”.\n\n`;
   if (r.status === 'ok') md += `| Trước | Sau |\n|---|---|\n| ![](${r.sample}-${r.id}-before.png) | ![](${r.sample}-${r.id}-after.png) |\n\n`;

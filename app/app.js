@@ -12,19 +12,19 @@ const I18N = {
     privacy: '🔒 Xử lý ngay trên máy bạn bằng WebAssembly. Không tải file lên máy chủ nào, không cần tài khoản.',
     f1h: 'Giữ phông gốc', f1: 'Dùng lại phông trong file, hoặc phông cùng họ đủ dấu tiếng Việt khi phông gốc thiếu chữ.',
     f2h: 'Xoá thật chữ cũ', f2: 'Chữ cũ bị xoá khỏi file, không phải che ô trắng. Tìm kiếm và copy thấy đúng chữ mới.',
-    f3h: 'Không xê dịch gì khác', f3: 'Chỉ dòng bạn sửa thay đổi. Giữ cả kiểu căn giữa, căn phải và chữ đậm, nghiêng trong dòng.',
+    f3h: 'Không xê dịch gì khác', f3: 'Chỉ đoạn bạn sửa thay đổi. Giữ căn giữa, căn phải, căn đều, chữ đậm, nghiêng, gạch chân; chữ dài ra tự dàn xuống dòng sau.',
     limH: 'Mình chưa làm được gì?',
     lim1: 'PDF bản scan hoặc ảnh chụp (không có lớp chữ).',
-    lim2: 'Sửa nhiều dòng một lúc hoặc dàn lại cả đoạn: hiện sửa từng dòng một.',
-    lim3: 'Chữ dài hơn chỗ trống sẽ được nén ngang (tối đa 85%); dài hơn nữa nên rút gọn.',
-    lim4: 'Gạch chân, nền tô vẽ rời không co giãn theo chữ mới.',
+    lim2: 'Sửa nhiều dòng một lúc: hiện sửa từng dòng; chữ dài ra sẽ tự dàn xuống các dòng sau của đoạn.',
+    lim3: 'Nếu đoạn không còn chỗ (đoạn sau nằm sát bên dưới), chữ được nén ngang tối đa 85%; dài hơn nữa nên rút gọn.',
+    lim4: 'Nền tô màu sau chữ chưa co giãn theo chữ mới (gạch chân, gạch ngang thì có).',
     hint: 'Bấm vào một dòng chữ để sửa · Enter để lưu · Esc để huỷ',
     save: 'Lưu', cancel: 'Huỷ', ehint: 'Enter lưu · Esc huỷ',
     openOther: 'Mở file khác', download: 'Tải PDF',
     undo: 'Hoàn tác (Ctrl+Z)', redo: 'Làm lại (Ctrl+Y)', zoomIn: 'Phóng to', zoomOut: 'Thu nhỏ',
     loadingEngine: 'Đang nạp bộ máy PDF (lần đầu khoảng 4–5 MB)…', opening: 'Đang mở file…', saving: 'Đang đóng gói PDF…', editing: 'Đang sửa…',
     page: 'Trang',
-    ok: 'Đã sửa.', okFont: 'Phông: {f}', squeezed: 'Chữ mới dài hơn chỗ trống nên mình nén ngang còn {tz}%.',
+    ok: 'Đã sửa.', okFont: 'Phông: {f}', reflowed: 'Đã dàn lại đoạn: {a} → {b} dòng.', decoFixed: 'Gạch chân/gạch ngang đã khớp chữ mới.', squeezed: 'Chữ mới dài hơn chỗ trống nên mình nén ngang còn {tz}%.',
     overflow: 'Chữ mới dài quá chỗ trống (đã nén tối đa 85%) nên có thể chạm chữ bên cạnh. Bạn nên rút gọn.',
     notFound: 'Không sửa được dòng này. Bạn thử bấm lại vào dòng sau khi trang vẽ xong.',
     noFont: 'Phông dự phòng thiếu ký tự cho chữ bạn gõ.',
@@ -43,19 +43,19 @@ const I18N = {
     privacy: '🔒 Processed on your device with WebAssembly. No upload to any server, no account needed.',
     f1h: 'Keeps the original font', f1: 'Reuses the font inside the file, or a same-family font with full Vietnamese support when glyphs are missing.',
     f2h: 'Truly removes old text', f2: 'Old text is deleted from the file, not covered with white boxes. Search and copy return the new text.',
-    f3h: 'Nothing else moves', f3: 'Only the line you edit changes. Centred and right-aligned lines, bold and italic runs are kept.',
+    f3h: 'Nothing else moves', f3: 'Only the paragraph you edit changes. Centring, right and justified alignment, bold, italic and underlines are kept; longer text flows to the next lines.',
     limH: 'What can’t it do yet?',
     lim1: 'Scanned PDFs or photos (no text layer).',
-    lim2: 'Editing several lines at once or reflowing a paragraph: one line at a time for now.',
-    lim3: 'Text longer than the space is condensed horizontally (down to 85%); shorten it beyond that.',
-    lim4: 'Separately drawn underlines and highlights do not resize with the new text.',
+    lim2: 'Editing several lines at once: one line at a time for now; longer text flows into the following lines of the paragraph.',
+    lim3: 'If the paragraph has no room left (the next one sits right below), text is condensed down to 85%; shorten it beyond that.',
+    lim4: 'Background highlights do not resize with the new text yet (underlines and strikethroughs do).',
     hint: 'Click a line of text to edit · Enter to save · Esc to cancel',
     save: 'Save', cancel: 'Cancel', ehint: 'Enter save · Esc cancel',
     openOther: 'Open another file', download: 'Download PDF',
     undo: 'Undo (Ctrl+Z)', redo: 'Redo (Ctrl+Y)', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     loadingEngine: 'Loading the PDF engine (about 4–5 MB the first time)…', opening: 'Opening file…', saving: 'Packing the PDF…', editing: 'Editing…',
     page: 'Page',
-    ok: 'Edited.', okFont: 'Font: {f}', squeezed: 'The new text is longer than the space, so it was condensed to {tz}%.',
+    ok: 'Edited.', okFont: 'Font: {f}', reflowed: 'Paragraph reflowed: {a} → {b} lines.', decoFixed: 'Underline/strikethrough resized to the new text.', squeezed: 'The new text is longer than the space, so it was condensed to {tz}%.',
     overflow: 'The new text is too long for the space (condensed to the 85% limit) and may touch the next text. Consider shortening it.',
     notFound: 'Could not edit this line. Try clicking it again once the page has rendered.',
     noFont: 'The fallback font lacks characters you typed.',
@@ -235,9 +235,12 @@ async function saveEdit() {
       if (!S.edited.has(e.pi)) S.edited.set(e.pi, []);
       S.edited.get(e.pi).push(rep.region);
       const fonts = (rep.fonts || []).map((f) => f.replace(/ \(.*\)$/, '').replace(/-/g, ' ')).join(', ');
+      let msg = T('ok');
+      if (rep.reflow && rep.reflow.lines !== rep.reflow.was) msg += ' ' + T('reflowed', { a: rep.reflow.was, b: rep.reflow.lines });
+      if (rep.decorations && rep.decorations.redrawn) msg += ' ' + T('decoFixed');
       if (rep.overflow) toast(T('overflow'), 'warn', T('okFont', { f: fonts }));
-      else if (rep.tz && rep.tz < 100) toast(T('ok') + ' ' + T('squeezed', { tz: rep.tz }), '', T('okFont', { f: fonts }));
-      else toast(T('ok'), '', T('okFont', { f: fonts }));
+      else if (rep.tz && rep.tz < 100) toast(msg + ' ' + T('squeezed', { tz: rep.tz }), '', T('okFont', { f: fonts }));
+      else toast(msg, '', T('okFont', { f: fonts }));
     } else if (rep.status !== 'unchanged') {
       toast(rep.status === 'no-font' ? T('noFont') : T('notFound'), 'err');
     }

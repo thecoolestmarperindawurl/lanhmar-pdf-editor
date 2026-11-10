@@ -56,7 +56,7 @@ const handlers = {
       rep = editLine(doc, pi, li, text, { loadFont });
       if (rep.status === 'ok') doc.endOperation(); else doc.abandonOperation();
     } catch (e) { try { doc.abandonOperation(); } catch { /* ignore */ } throw e; }
-    const keep = ['status', 'reason', 'strategy', 'fonts', 'tz', 'overflow', 'region', 'align', 'fontName', 'fallback'];
+    const keep = ['status', 'reason', 'strategy', 'fonts', 'tz', 'overflow', 'region', 'align', 'fontName', 'fallback', 'reflow', 'decorations'];
     return { rep: Object.fromEntries(keep.filter((k) => k in rep).map((k) => [k, rep[k]])), ...state() };
   },
   undo() { if (doc.canUndo()) doc.undo(); return state(); },
