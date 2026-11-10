@@ -21,7 +21,7 @@ PDF lưu từng cụm ký tự ở toạ độ cố định, phông thường ch
 ## Bài học kỹ thuật đã gặp
 - `toPixmap().getPixels()` trả về vùng nhớ WASM, phải `.slice()` ngay, nếu không dữ liệu bị ghi đè (ảnh đen, so điểm ảnh sai).
 - `saveToBuffer()` trả `mupdf.Buffer`, dùng `.asUint8Array().slice()` trước khi đưa cho Node/pdf.js.
-- Chromium nhúng phông CFF/OTF thành nhiều phông Type3 không tên, mỗi cái vài ký tự: khi đo độ rộng phải gom mọi ký tự Type3 cùng cỡ trên dòng.
+- Chromium nhúng phông CFF/OTF thành nhiều phông Type3 không tên, mỗi cái vài ký tự (không theo kiểu chữ): đo độ rộng gộp cả trang để chốt họ phông, còn độ đậm xét riêng từng phông con.
 - Tiêu chí tự động chưa đủ: luôn xem ảnh trước/sau (từng có ca "đạt" nhưng mất in đậm, mất SemiBold, in đậm cả dòng trộn).
 - Độ rộng ký tự phân biệt được họ phông nhưng **không** phân biệt được độ đậm của Inter; dùng lượng mực.
 - Lượng mực phải tự xác định nền là điểm khác màu chữ nhất (chữ sáng trên nền tối thì nền là điểm tối nhất).
